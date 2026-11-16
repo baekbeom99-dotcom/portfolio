@@ -47,7 +47,8 @@ window.PORTFOLIO_APPS = [
     "url": "https://baekbeom99-dotcom.github.io/animal-race/",
     "embedMode": "newTab",
     "tags": [
-      "교육"
+      "교육",
+      "순서정하기"
     ],
     "featured": false,
     "createdAt": "2026-11-16"
@@ -68,7 +69,78 @@ window.PORTFOLIO_APPS = [
     "url": "https://baekbeom99-dotcom.github.io/gugu-monster/#/pet",
     "embedMode": "newTab",
     "tags": [
-      "교육"
+      "교육",
+      "수학",
+      "구구단"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-16"
+  },
+  {
+    "id": "doble",
+    "title": "Turtle Dobble",
+    "tagline": "Turtle Dobble 웹앱 바로 실행 도구",
+    "purpose": "별도 프로그램 설치 없이 웹 브라우저만으로 필요한 기능을 손쉽게 활용할 수 있도록 만든 웹앱입니다.",
+    "audience": "교육 현장 및 일상에서 웹앱 도구를 활용하고 싶은 모든 사용자",
+    "description": [
+      "링크를 통해 브라우저에서 즉시 실행하고 주요 기능을 체험할 수 있습니다.",
+      "PC와 태블릿 화면 크기에서 모두 안정적으로 동작하도록 활용할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/doble.png",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/doble/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "한글",
+      "알파벳"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-16"
+  },
+  {
+    "id": "turtle-dobble",
+    "title": "Turtle Dobble (휴대폰 버전, 간략)",
+    "tagline": "순발력과 관찰력으로 같은 글자를 찾아라! 혼자하기, 1:1 대결하기, 협동 보스전까지 즐기는 거북이 도블 모바일 게임",
+    "purpose": "순발력과 관찰력으로 같은 글자를 찾아라! 혼자하기, 1:1 대결하기, 협동 보스전까지 즐기는 거북이 도블 모바일 게임 — 교육과 일상생활에서 필요한 작업을 웹에서 간편하게 수행할 수 있도록 제작했습니다.",
+    "audience": "교육 현장 및 일상에서 웹앱 도구를 활용하고 싶은 모든 사용자",
+    "description": [
+      "링크를 통해 브라우저에서 즉시 실행하고 주요 기능을 체험할 수 있습니다.",
+      "PC와 모바일 화면 크기에서 모두 안정적으로 동작하도록 활용할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/turtle-dobble.png",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/advGugu/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "한글",
+      "알파벳"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-16"
+  },
+  {
+    "id": "pose-ninja-fruit",
+    "title": "Pose Ninja Fruit - 모션 인식 슬라이스 게임",
+    "tagline": "웹캠/전면 카메라 모션 인식(MediaPipe Pose) 과일 슬라이스 게임 (Pose Ninja Fruit)",
+    "purpose": "웹캠/전면 카메라 모션 인식(MediaPipe Pose) 과일 슬라이스 게임 (Pose Ninja Fruit) — 교육과 일상생활에서 필요한 작업을 웹에서 간편하게 수행할 수 있도록 제작했습니다.",
+    "audience": "교육 현장 및 일상에서 웹앱 도구를 활용하고 싶은 모든 사용자",
+    "description": [
+      "❓ 자세 가이드",
+      "주요 구성: POSE NINJA FRUIT · GAME OVER · ⚡ 한글 자음 필살기 자세 가이드",
+      "링크를 통해 브라우저에서 즉시 실행하고 주요 기능을 체험할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/pose-ninja-fruit.png",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/pose-ninja-fruit/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "일상생활"
     ],
     "featured": false,
     "createdAt": "2026-11-16"
