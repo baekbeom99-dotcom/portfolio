@@ -144,5 +144,26 @@ window.PORTFOLIO_APPS = [
     ],
     "featured": false,
     "createdAt": "2026-11-16"
+  },
+  {
+    "id": "catmath",
+    "title": "냥냥수학",
+    "tagline": "수준별 학습지 만들기, 자기 주도 수학 학습, 기초연산",
+    "purpose": "수준별 학습 및 자기조도 학습을 위한 학습지 만들기",
+    "audience": "초등학생 및 교사",
+    "description": [
+      "수학 학습지 만들기, 학습자 수준별 문제 출제, 고양이 키우기"
+    ],
+    "thumbnail": "./assets/thumbnails/catmath.png",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://gugudan-monster.web.app/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "수학"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-16"
   }
 ];
