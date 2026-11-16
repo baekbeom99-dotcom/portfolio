@@ -227,7 +227,24 @@
   }
 
   function getSafeThumbnailUrl(url) {
-    return getSafeUrl(url, ["https://", "http://", "./"]);
+    var basic = getSafeUrl(url, ["https://", "http://", "./"]);
+    if (basic) {
+      return basic;
+    }
+    if (typeof url !== "string") {
+      return null;
+    }
+    var trimmed = url.trim();
+    if (!trimmed || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+      return null;
+    }
+    if (/^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml)(?:;[^;,]+)*;base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^data:image\/svg\+xml(?:;charset=utf-8)?,[\s\S]+$/i.test(trimmed)) {
+      return trimmed;
+    }
+    return null;
   }
 
   function getLaunchTypeLabel(launchType) {

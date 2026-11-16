@@ -744,4 +744,15 @@ test("buildThumbnailFrame applies adaptive contain/cover fitting and clears cont
   const modalThumbWrap = findFirst(modalEl, (n) => n.classList.contains("modal-thumb-wrap"));
   assert.ok(modalThumbWrap);
   assert.equal(modalThumbWrap.classList.contains("is-contain-fit"), true);
+
+  // Safe image data URLs (uploaded via FileReader) are rendered directly in buildThumbnailFrame
+  const dataImgFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", {
+    title: "업로드 썸네일",
+    thumbnail: "data:image/png;base64,iVBORw0KGgo=",
+    thumbnailFit: "contain"
+  }, false);
+  const dataMain = findFirst(dataImgFrame, (n) => n.classList.contains("app-card-img"));
+  const dataAmbient = findFirst(dataImgFrame, (n) => n.classList.contains("thumb-ambient-bg"));
+  assert.equal(dataMain.src, "data:image/png;base64,iVBORw0KGgo=");
+  assert.equal(dataAmbient.src, "data:image/png;base64,iVBORw0KGgo=");
 });

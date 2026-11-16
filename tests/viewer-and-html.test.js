@@ -406,6 +406,9 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     "./js/state.js",
     "./js/render.js",
     "./js/viewer.js",
+    "./js/recommender.js",
+    "./js/github-sync.js",
+    "./js/admin.js",
     "./js/app.js"
   ];
   let lastIndex = -1;
@@ -470,6 +473,15 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
     ".btn-admin-entry",
     ".btn-admin-lock",
     ".draft-banner",
+    ".admin-dialog",
+    ".admin-auth-box",
+    ".admin-layout",
+    ".admin-app-list",
+    ".admin-form",
+    ".admin-rec-box",
+    ".admin-thumb-preview",
+    ".admin-tag-suggestions",
+    ".admin-github-details",
     ".thumb-ambient-bg",
     ".is-contain-fit",
     ".app-card",
@@ -559,11 +571,13 @@ function setupPortfolioHarness(options = {}) {
   enhanceDoc(doc);
 
   const headerEl = createWithId("header", "site-header");
+  const draftBannerEl = createWithId("div", "draft-banner", { hidden: true });
   const searchInput = createWithId("input", "search-input");
   const tagFiltersEl = createWithId("div", "tag-filters");
   const appsCountEl = createWithId("p", "apps-count");
   const appGridEl = createWithId("div", "app-grid");
   const detailModalEl = createWithId("div", "detail-modal", { hidden: true });
+  const adminModalEl = createWithId("div", "admin-modal", { hidden: true });
   const toastEl = createWithId("div", "toast", { hidden: true });
 
   const overlayDom = buildOverlayDom(doc);
@@ -595,12 +609,14 @@ function setupPortfolioHarness(options = {}) {
   };
 
   doc.body.appendChild(headerEl);
+  doc.body.appendChild(draftBannerEl);
   doc.body.appendChild(searchInput);
   doc.body.appendChild(launchGroupEl);
   doc.body.appendChild(tagFiltersEl);
   doc.body.appendChild(appsCountEl);
   doc.body.appendChild(appGridEl);
   doc.body.appendChild(detailModalEl);
+  doc.body.appendChild(adminModalEl);
   doc.body.appendChild(overlayDom.overlay);
   doc.body.appendChild(toastEl);
 
@@ -659,10 +675,12 @@ function setupPortfolioHarness(options = {}) {
     doc,
     winListeners,
     headerEl,
+    draftBannerEl,
     searchInput,
     tagFiltersEl,
     appGridEl,
     detailModalEl,
+    adminModalEl,
     overlayDom,
     viewerBackBtn,
     launchGroupEl,
@@ -871,4 +889,82 @@ test("PortfolioApp.initPortfolio opens and closes cards cleanly when history.rep
   assert.equal(detailModalEl.hidden, true);
   assert.equal(instance.store.getState().selectedAppId, null);
   assert.equal(locationObj.hash, "");
+});
+
+test("PortfolioApp.initPortfolio renders draft banner, responds to onAppsChanged/onAuthChanged, and closes admin modal on Escape", () => {
+  let draftList = [SAMPLE_APPS[0]];
+  let adminOpen = false;
+  let adminUnlocked = false;
+  let capturedAdminOpts = null;
+  let clearCount = 0;
+
+  const {
+    doc,
+    headerEl,
+    draftBannerEl,
+    appGridEl,
+    adminModalEl,
+    instance
+  } = setupPortfolioHarness({
+    apps: [],
+    portfolioAdmin: {
+      loadDraftApps: () => draftList,
+      hasDraftApps: () => draftList !== null,
+      clearDraftApps: () => {
+        clearCount += 1;
+        draftList = null;
+      },
+      initAdmin: (opts) => {
+        capturedAdminOpts = opts;
+        return {
+          isUnlocked: () => adminUnlocked,
+          isOpen: () => adminOpen,
+          open: () => {
+            adminOpen = true;
+            adminModalEl.hidden = false;
+          },
+          close: () => {
+            adminOpen = false;
+            adminModalEl.hidden = true;
+          },
+          lock: () => {
+            adminUnlocked = false;
+            opts.onAuthChanged(false);
+          }
+        };
+      }
+    }
+  });
+
+  assert.ok(capturedAdminOpts, "initPortfolio must initialize PortfolioAdmin.initAdmin");
+  assert.equal(instance.store.getState().apps.length, 1);
+  assert.equal(draftBannerEl.hidden, false);
+  const bannerText = draftBannerEl.querySelector(".draft-banner-text");
+  assert.ok(bannerText && bannerText.textContent.includes("로컬 미리보기 중"));
+  assert.equal(appGridEl.children.length, 1);
+
+  // Header reflects auth state changes immediately
+  assert.equal(headerEl.querySelector("#admin-toggle-btn").textContent, "관리자 모드");
+  adminUnlocked = true;
+  capturedAdminOpts.onAuthChanged(true);
+  assert.equal(headerEl.querySelector("#admin-toggle-btn").textContent, "관리자 패널");
+  assert.ok(headerEl.querySelector("#admin-lock-btn"));
+
+  // Escape closes admin modal when open
+  headerEl.querySelector("#admin-toggle-btn").click();
+  assert.equal(adminOpen, true);
+  doc.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+  assert.equal(adminOpen, false);
+
+  // onAppsChanged updates store, grid, and tags cleanly
+  capturedAdminOpts.onAppsChanged(SAMPLE_APPS);
+  assert.equal(appGridEl.children.length, 2);
+
+  // Clicking draft banner reset restores base PORTFOLIO_APPS ([]) and hides banner
+  const resetDraftBtn = draftBannerEl.querySelector(".btn-reset-draft");
+  assert.ok(resetDraftBtn);
+  resetDraftBtn.click();
+  assert.equal(clearCount, 1);
+  assert.equal(draftBannerEl.hidden, true);
+  assert.equal(instance.store.getState().apps.length, 0);
 });
