@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>샘플 내장 앱 - 25분 집중 타이머</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-ink: #082f49;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 1.5rem;
+    }
+
+    .panel {
+      width: min(420px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    h1 {
+      margin: 0.9rem 0 0.35rem;
+      font-size: 1.35rem;
+    }
+
+    p {
+      margin: 0 0 1.5rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .time {
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+      margin: 1rem 0 1.5rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 0.7rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    .secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <span class="badge">포트폴리오 내장 앱 샘플</span>
+    <h1>25분 집중 타이머</h1>
+    <p>별도 GitHub 저장소 없이 <code>apps/sample-app/</code>에 직접 탑재된 웹앱 예시입니다.</p>
+    <div id="display" class="time" aria-live="polite">25:00</div>
+    <div class="actions">
+      <button id="toggleBtn" class="primary" type="button">시작</button>
+      <button id="resetBtn" class="secondary" type="button">초기화</button>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const DEFAULT_SECONDS = 25 * 60;
+      let remaining = DEFAULT_SECONDS;
+      let timerId = null;
+
+      const display = document.getElementById("display");
+      const toggleBtn = document.getElementById("toggleBtn");
+      const resetBtn = document.getElementById("resetBtn");
+
+      function render() {
+        const min = String(Math.floor(remaining / 60)).padStart(2, "0");
+        const sec = String(remaining % 60).padStart(2, "0");
+        display.textContent = min + ":" + sec;
+      }
+
+      function stop() {
+        if (timerId !== null) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+        toggleBtn.textContent = "시작";
+      }
+
+      toggleBtn.addEventListener("click", function () {
+        if (timerId !== null) {
+          stop();
+          return;
+        }
+        if (remaining <= 0) {
+          remaining = DEFAULT_SECONDS;
+          render();
+        }
+        toggleBtn.textContent = "일시정지";
+        timerId = setInterval(function () {
+          if (remaining > 0) {
+            remaining -= 1;
+            render();
+            if (remaining === 0) {
+              stop();
+            }
+          } else {
+            stop();
+          }
+        }, 1000);
+      });
+
+      resetBtn.addEventListener("click", function () {
+        stop();
+        remaining = DEFAULT_SECONDS;
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

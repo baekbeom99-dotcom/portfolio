@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="thumb-sample-title thumb-sample-desc">
+  <title id="thumb-sample-title">포모도로 집중 타이머 샘플 앱 썸네일</title>
+  <desc id="thumb-sample-desc">25분 집중 타이머 진행 링과 12개 눈금이 배치된 내장 앱 미리보기 그래픽</desc>
+  <defs>
+    <linearGradient id="sample-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="sample-glow" cx="50%" cy="45%" r="48%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#0b1220" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sample-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <pattern id="sample-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-opacity="0.1"/>
+    </pattern>
+  </defs>
+
+  <g id="background-grid">
+    <rect width="800" height="450" fill="url(#sample-bg)"/>
+    <rect width="800" height="450" fill="url(#sample-grid)"/>
+    <rect width="800" height="450" fill="url(#sample-glow)"/>
+  </g>
+
+  <g id="primary-subject">
+    <g stroke="#475569" stroke-width="2" stroke-linecap="round">
+      <line x1="400.00" y1="77.00" x2="400.00" y2="69.00"/>
+      <line x1="464.00" y1="94.15" x2="468.00" y2="87.22"/>
+      <line x1="510.85" y1="141.00" x2="517.78" y2="137.00"/>
+      <line x1="528.00" y1="205.00" x2="536.00" y2="205.00"/>
+      <line x1="510.85" y1="269.00" x2="517.78" y2="273.00"/>
+      <line x1="464.00" y1="315.85" x2="468.00" y2="322.78"/>
+      <line x1="400.00" y1="333.00" x2="400.00" y2="341.00"/>
+      <line x1="336.00" y1="315.85" x2="332.00" y2="322.78"/>
+      <line x1="289.15" y1="269.00" x2="282.22" y2="273.00"/>
+      <line x1="272.00" y1="205.00" x2="264.00" y2="205.00"/>
+      <line x1="289.15" y1="141.00" x2="282.22" y2="137.00"/>
+      <line x1="336.00" y1="94.15" x2="332.00" y2="87.22"/>
+    </g>
+    <circle cx="400" cy="205" r="110" fill="#0f172a" fill-opacity="0.55" stroke="#334155" stroke-width="14"/>
+    <circle cx="400" cy="205" r="110" fill="none" stroke="url(#sample-ring)" stroke-width="14" stroke-dasharray="518.36 691.15" stroke-linecap="round" transform="rotate(-90 400 205)"/>
+    <circle cx="290" cy="205" r="7" fill="#f8fafc"/>
+  </g>
+
+  <g id="foreground-accents">
+    <text x="400" y="218" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" letter-spacing="2">25:00</text>
+    <text x="400" y="392" text-anchor="middle" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" letter-spacing="2">EMBEDDED APP · FOCUS TIMER</text>
+  </g>
+</svg>
