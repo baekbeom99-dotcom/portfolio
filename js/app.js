@@ -20,7 +20,15 @@
       global.PortfolioAdmin && typeof global.PortfolioAdmin.loadDraftApps === "function"
         ? global.PortfolioAdmin.loadDraftApps()
         : null;
-    var initialApps = draftApps !== null ? draftApps : baseApps;
+    var publishedCacheApps =
+      draftApps === null &&
+      global.PortfolioAdmin &&
+      typeof global.PortfolioAdmin.loadPublishedCache === "function"
+        ? global.PortfolioAdmin.loadPublishedCache()
+        : null;
+    var initialApps = draftApps !== null
+      ? draftApps
+      : (publishedCacheApps !== null ? publishedCacheApps : baseApps);
     var store = global.PortfolioState.createStore(initialApps);
 
     var headerEl = document.getElementById("site-header");
@@ -496,6 +504,65 @@
     }
 
     store.syncFromHash(global.location ? global.location.hash : "");
+
+    function refreshDeployedDataScript() {
+      var loc = global.location;
+      if (!loc || (loc.protocol !== "http:" && loc.protocol !== "https:")) {
+        return;
+      }
+      var head = document.head || document.documentElement;
+      if (!head || typeof document.createElement !== "function") {
+        return;
+      }
+      var scriptEl = document.createElement("script");
+      scriptEl.src = "./data/apps.js?t=" + String(Date.now());
+      scriptEl.onload = function () {
+        if (scriptEl.parentNode) {
+          scriptEl.parentNode.removeChild(scriptEl);
+        }
+        var freshApps = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS : [];
+        var hasDraft = Boolean(
+          global.PortfolioAdmin &&
+          typeof global.PortfolioAdmin.hasDraftApps === "function" &&
+          global.PortfolioAdmin.hasDraftApps()
+        );
+        if (hasDraft) {
+          return;
+        }
+        var cachedPublished =
+          global.PortfolioAdmin &&
+          typeof global.PortfolioAdmin.loadPublishedCache === "function"
+            ? global.PortfolioAdmin.loadPublishedCache()
+            : null;
+        if (cachedPublished !== null) {
+          try {
+            if (JSON.stringify(freshApps) === JSON.stringify(cachedPublished)) {
+              if (typeof global.PortfolioAdmin.clearPublishedCache === "function") {
+                global.PortfolioAdmin.clearPublishedCache();
+              }
+            }
+          } catch (_err) {
+            // Keep published cache until TTL if comparison fails.
+          }
+          return;
+        }
+        try {
+          if (JSON.stringify(freshApps) !== JSON.stringify(store.getState().apps)) {
+            handleAppsChanged(freshApps);
+          }
+        } catch (_err) {
+          handleAppsChanged(freshApps);
+        }
+      };
+      scriptEl.onerror = function () {
+        if (scriptEl.parentNode) {
+          scriptEl.parentNode.removeChild(scriptEl);
+        }
+      };
+      head.appendChild(scriptEl);
+    }
+
+    refreshDeployedDataScript();
 
     return {
       store: store

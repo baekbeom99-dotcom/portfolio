@@ -874,3 +874,72 @@ test("initAdmin validates thumbnail URLs/uploads and clears pending thumbnail wi
   assert.equal(currentApps[0].thumbnail, "");
   assert.equal(currentApps[0]._pendingThumbDataUrl, undefined);
 });
+
+test("published cache persists across reload after publishToGitHub and surfaces form errors on publish click", async () => {
+  let currentApps = [];
+  const toasts = [];
+  const harness = loadAdminHarness({
+    initialApps: currentApps,
+    fetchImpl: async (url, init) => {
+      if (init && init.method === "PUT") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ commit: { sha: "pub-sha" }, content: { html_url: "https://github.com/u/r/blob/main/data/apps.js" } })
+        };
+      }
+      if (String(url).includes("/contents/data/apps.js")) {
+        return { ok: true, status: 200, json: async () => ({ sha: "old-sha" }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    }
+  });
+  harness.sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  const { doc, modalEl, PortfolioAdmin, localStorage } = harness;
+
+  const controller = PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => currentApps,
+    getConfig: () => harness.sandbox.window.PORTFOLIO_CONFIG,
+    onAppsChanged: (next) => { currentApps = next; },
+    onAuthChanged: () => {},
+    onToast: (msg) => { toasts.push(msg); }
+  });
+
+  controller.open();
+
+  // Clicking publish with incomplete form surfaces validation message to ghStatus & toast
+  doc.getElementById("admin-app-url").value = "https://example.com/quiz";
+  await doc.getElementById("admin-publish-btn").click();
+  const formErrorText = doc.getElementById("admin-form-error").textContent;
+  assert.ok(formErrorText.length > 0);
+  assert.equal(doc.getElementById("admin-github-status").textContent, formErrorText);
+  assert.equal(toasts[toasts.length - 1], formErrorText);
+
+  // Korean-only title auto-generates a valid fallback app ID so publish succeeds without manual English ID
+  const titleInput = doc.getElementById("admin-app-title");
+  titleInput.value = "한글 전용 웹앱";
+  titleInput.dispatchEvent({ type: "input", target: titleInput });
+  assert.match(doc.getElementById("admin-app-id").value, /^[a-z0-9-]+$/);
+
+  doc.getElementById("admin-app-tagline").value = "한 줄 소개";
+  doc.getElementById("admin-app-purpose").value = "목적";
+  doc.getElementById("admin-app-audience").value = "학생";
+  doc.getElementById("admin-app-description").value = "사용법";
+  doc.getElementById("admin-github-token").value = "pat_valid";
+
+  await doc.getElementById("admin-publish-btn").click();
+  await new Promise((r) => setTimeout(r, 10));
+
+  assert.equal(currentApps.length, 1);
+  assert.equal(PortfolioAdmin.hasDraftApps(), false);
+  const cachedAfterPublish = PortfolioAdmin.loadPublishedCache();
+  assert.ok(Array.isArray(cachedAfterPublish) && cachedAfterPublish.length === 1);
+  assert.equal(cachedAfterPublish[0].title, "한글 전용 웹앱");
+
+  // Expire TTL -> loadPublishedCache returns null and clears storage key
+  const rawStored = JSON.parse(localStorage.getItem("ys_portfolio_published_cache"));
+  rawStored.publishedAt = Date.now() - (6 * 60 * 1000);
+  localStorage.setItem("ys_portfolio_published_cache", JSON.stringify(rawStored));
+  assert.equal(PortfolioAdmin.loadPublishedCache(), null);
+});

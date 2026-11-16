@@ -31,6 +31,28 @@ window.PORTFOLIO_CONFIG = {
 
 window.PORTFOLIO_APPS = [
   {
+    "id": "animal-race",
+    "title": "동물 달리기 추첨",
+    "tagline": "교실 추첨용 동물 달리기 + 마블 룰렛 웹앱",
+    "purpose": "교실 추첨용 동물 달리기 + 마블 룰렛 웹앱 — 학습자가 핵심 내용을 이해하고 스스로 연습할 수 있도록 돕기 위해 제작했습니다.",
+    "audience": "초·중·고 학생, 교사 및 자기주도 학습자",
+    "description": [
+      "주요 동작 버튼: 동물 달리기, 마블 룰렛, 소리 켬",
+      "화면에 안내된 단계에 따라 별도 설치 없이 바로 학습을 시작할 수 있습니다.",
+      "모바일과 데스크톱 환경 모두에 맞춰 편리하게 이용할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/animal-race.png",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/animal-race/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-16"
+  },
+  {
     "id": "gugu-monster",
     "title": "구구단 몬스터 탐험대",
     "tagline": "구구단 몬스터 탐험대: 구구단을 풀어 몬스터를 잡고 펫을 키우는 초등 3학년용 학습 웹앱",
