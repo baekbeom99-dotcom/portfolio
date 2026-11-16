@@ -58,6 +58,18 @@
     if (!overlayEl) {
       return;
     }
+    var titleEl = queryNode(overlayEl, "#viewer-app-title");
+    if (titleEl) {
+      titleEl.textContent = "";
+    }
+    var externalLink = queryNode(overlayEl, "#viewer-open-external");
+    if (externalLink) {
+      if (typeof externalLink.removeAttribute === "function") {
+        externalLink.removeAttribute("href");
+      } else {
+        externalLink.href = "";
+      }
+    }
     var iframeEl = queryNode(overlayEl, "#viewer-iframe");
     if (iframeEl) {
       iframeEl.src = "about:blank";

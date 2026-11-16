@@ -142,11 +142,18 @@
           stop();
           return;
         }
+        if (remaining <= 0) {
+          remaining = DEFAULT_SECONDS;
+          render();
+        }
         toggleBtn.textContent = "일시정지";
         timerId = setInterval(function () {
           if (remaining > 0) {
             remaining -= 1;
             render();
+            if (remaining === 0) {
+              stop();
+            }
           } else {
             stop();
           }

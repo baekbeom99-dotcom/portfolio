@@ -88,13 +88,16 @@
       </div>
     </header>
 
+    <div class="viewer-hint" role="note">화면이 표시되지 않으면 '새 탭으로 열기'를 눌러주세요</div>
+
     <div class="viewer-stage-wrap">
       <div id="viewer-stage" class="viewer-frame-stage">
         <iframe
           id="viewer-iframe"
           class="viewer-iframe"
           src="about:blank"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+          loading="eager"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
           referrerpolicy="strict-origin-when-cross-origin"
         ></iframe>
       </div>

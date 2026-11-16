@@ -827,6 +827,17 @@ a {
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
 }
 
+.viewer-hint {
+  flex: 0 0 auto;
+  padding: 0.34rem 1rem;
+  background: rgba(15, 23, 42, 0.94);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .viewer-toolbar-left,
 .viewer-toolbar-right {
   display: flex;
@@ -973,6 +984,11 @@ a {
   .modal-actions {
     padding-left: 1.1rem;
     padding-right: 1.1rem;
+  }
+
+  .viewer-hint {
+    padding: 0.3rem 0.75rem;
+    font-size: 0.74rem;
   }
 
   .viewer-stage-wrap {

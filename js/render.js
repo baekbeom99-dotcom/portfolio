@@ -81,7 +81,7 @@
     var idSuffix = String(hash);
 
     var safeInitial = escapeXml(initial);
-    var safeSubtitle = escapeXml(truncateTitle(displayTitle, 40));
+    var safeSubtitle = escapeXml(truncateTitle(displayTitle, 26));
     var safeAriaTitle = escapeXml(displayTitle + " 썸네일");
     var ticksMarkup = buildPolarTicks(
       SVG_CX,
@@ -244,7 +244,8 @@
    * Attaches a thumbnail image source and a one-shot onerror SVG fallback guard.
    */
   function attachThumbnailFallback(imgEl, thumbnailUrl, title, lazy) {
-    var appTitle = typeof title === "string" && title ? title : "웹앱";
+    var trimmedTitle = typeof title === "string" ? title.trim() : "";
+    var appTitle = trimmedTitle || "웹앱";
     var safeThumb = getSafeThumbnailUrl(thumbnailUrl);
     imgEl.alt = appTitle + " 썸네일";
     if (lazy) {
@@ -318,15 +319,18 @@
     }
     var safeContact = getSafeContactUrl(safeConfig.contactLink);
     if (safeContact) {
+      var isMailto = safeContact.toLowerCase().indexOf("mailto:") === 0;
       metaRow.appendChild(
         el("a", {
           className: "hero-contact",
           text: "문의 · 링크",
-          props: {
-            href: safeContact,
-            target: "_blank",
-            rel: "noopener noreferrer"
-          }
+          props: isMailto
+            ? { href: safeContact }
+            : {
+                href: safeContact,
+                target: "_blank",
+                rel: "noopener noreferrer"
+              }
         })
       );
     }

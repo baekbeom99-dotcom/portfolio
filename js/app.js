@@ -39,6 +39,7 @@
 
     var embeddedCount = 0;
     var externalCount = 0;
+    var validCount = 0;
     for (var i = 0; i < apps.length; i += 1) {
       var item = apps[i];
       if (!item) {
@@ -46,13 +47,15 @@
       }
       if (item.launchType === "embedded") {
         embeddedCount += 1;
+        validCount += 1;
       } else if (item.launchType === "external") {
         externalCount += 1;
+        validCount += 1;
       }
     }
 
     global.PortfolioRender.renderHeader(headerEl, config, {
-      totalCount: apps.length,
+      totalCount: validCount,
       embeddedCount: embeddedCount,
       externalCount: externalCount
     });
@@ -112,7 +115,7 @@
     var lastModalAppId = undefined;
     var lastFocusedEl = null;
     var lastModalVisible = false;
-    var lastViewerOpen = false;
+    var lastViewerOpen = null;
 
     function focusFirstAvailable(candidates) {
       for (var c = 0; c < candidates.length; c += 1) {
@@ -166,8 +169,8 @@
             state.activeTag !== "all" ||
             state.launchFilter !== "all";
           appsCountEl.textContent = isFiltered
-            ? "총 " + apps.length + "개 중 " + filteredApps.length + "개 표시"
-            : "전체 " + apps.length + "개 웹앱";
+            ? "총 " + validCount + "개 중 " + filteredApps.length + "개 표시"
+            : "전체 " + validCount + "개 웹앱";
         }
       }
 
@@ -197,7 +200,7 @@
       }
 
       var wasModalVisible = lastModalVisible;
-      var wasViewerOpen = lastViewerOpen;
+      var wasViewerOpen = lastViewerOpen === true;
       var isModalVisible = Boolean(selectedApp && !state.viewerOpen);
       var isViewerVisible = false;
 
@@ -213,7 +216,7 @@
           return;
         }
         isViewerVisible = true;
-      } else {
+      } else if (lastViewerOpen !== false) {
         global.PortfolioViewer.unmountViewer(viewerOverlayEl);
       }
 

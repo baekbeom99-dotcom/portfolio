@@ -334,6 +334,8 @@ test("PortfolioViewer.unmountViewer resets iframe.src to about:blank, clears tit
   Viewer.unmountViewer(dom.overlay);
   assert.equal(dom.iframeEl.src, "about:blank");
   assert.equal(dom.iframeEl.getAttribute("title"), null);
+  assert.equal(dom.titleEl.textContent, "");
+  assert.equal(dom.externalLink.getAttribute("href"), null);
   assert.equal(dom.overlay.hidden, true);
   assert.equal(dom.overlay.getAttribute("aria-hidden"), "true");
 });
@@ -429,6 +431,18 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     assert.match(html, new RegExp(`id=["']${requiredId}["']`), `Missing #${requiredId}`);
   }
   assert.match(html, /data-launch-filter=["']all["']/);
+
+  const viewerOverlayMatch = /<div[^>]*id=["']viewer-overlay["'][\s\S]*?<div[^>]*id=["']toast["']/i.exec(html);
+  assert.ok(viewerOverlayMatch, "Missing #viewer-overlay section");
+  assert.ok(
+    viewerOverlayMatch[0].includes("화면이 표시되지 않으면 '새 탭으로 열기'를 눌러주세요"),
+    "#viewer-overlay must contain blocked-iframe external open hint"
+  );
+
+  const iframeMatch = /<iframe[^>]*id=["']viewer-iframe["'][^>]*>/i.exec(html);
+  assert.ok(iframeMatch, "Missing #viewer-iframe tag");
+  assert.match(iframeMatch[0], /\bloading=["']eager["']/i, "#viewer-iframe must set loading='eager'");
+  assert.match(iframeMatch[0], /\bsandbox=["'][^"']*\ballow-modals\b[^"']*["']/i, "#viewer-iframe sandbox must include allow-modals");
 });
 
 test("css/styles.css exists and defines core showcase, modal, viewer, mobile preview, and reduced-motion rules", () => {
@@ -441,6 +455,7 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
     ".modal-dialog",
     ".modal-dialog > *",
     ".viewer-overlay",
+    ".viewer-hint",
     ".is-mobile",
     "@media (prefers-reduced-motion: reduce)"
   ]) {
@@ -636,17 +651,23 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, focus management, 
   assert.ok(appGridEl.children.length >= 2);
   assert.equal(detailModalEl.hidden, true);
   assert.equal(overlayDom.overlay.hidden, true);
+  const iframeSrcSetsAfterInit = overlayDom.iframeEl.srcSetCount;
 
-  // Launch filter click narrows grid to embedded
+  // Launch filter click narrows grid to embedded without touching closed viewer iframe
   launchBtns[1].click();
   assert.equal(launchBtns[1].getAttribute("aria-pressed"), "true");
   assert.equal(launchBtns[0].getAttribute("aria-pressed"), "false");
   assert.equal(appGridEl.children.length, 1);
 
-  // Search input filters out and back in
+  // Search input filters out and back in without unmounting closed viewer
   searchInput.value = "없는검색어";
   searchInput.dispatchEvent({ type: "input", target: searchInput });
   assert.equal(appGridEl.children[0].className, "empty-state");
+  assert.equal(
+    overlayDom.iframeEl.srcSetCount,
+    iframeSrcSetsAfterInit,
+    "Search/filter updates must not redundantly unmount closed viewer"
+  );
 
   // Reset filters via empty state button
   const resetBtn = appGridEl.querySelector(".btn-reset-filters");
