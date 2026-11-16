@@ -33,7 +33,7 @@ window.PORTFOLIO_APPS = [
   {
     "id": "animal-race",
     "title": "동물 달리기 추첨",
-    "tagline": "교실 추첨용 동물 달리기 + 마블 룰렛 웹앱",
+    "tagline": "교실 추첨용 동물 달리기, 마블 룰렛(순서 정하기)",
     "purpose": "교실 추첨용 동물 달리기 + 마블 룰렛 웹앱 — 학습자가 핵심 내용을 이해하고 스스로 연습할 수 있도록 돕기 위해 제작했습니다.",
     "audience": "초·중·고 학생, 교사 및 자기주도 학습자",
     "description": [
@@ -56,7 +56,7 @@ window.PORTFOLIO_APPS = [
   {
     "id": "gugu-monster",
     "title": "구구단 몬스터 탐험대",
-    "tagline": "구구단 몬스터 탐험대: 구구단을 풀어 몬스터를 잡고 펫을 키우는 초등 3학년용 학습 웹앱",
+    "tagline": "구구단을 풀어 몬스터를 잡고 펫을 키우는 학습앱",
     "purpose": "구구단 몬스터 탐험대: 구구단을 풀어 몬스터를 잡고 펫을 키우는 초등 3학년용 학습 웹앱 — 학습자가 핵심 내용을 이해하고 스스로 연습할 수 있도록 돕기 위해 제작했습니다.",
     "audience": "초·중·고 학생, 교사 및 자기주도 학습자",
     "description": [
@@ -79,7 +79,7 @@ window.PORTFOLIO_APPS = [
   {
     "id": "doble",
     "title": "Turtle Dobble",
-    "tagline": "Turtle Dobble 웹앱 바로 실행 도구",
+    "tagline": "도블 게임 기반 한글 및 알파벳 학습앱(태블릿, PC버전)",
     "purpose": "별도 프로그램 설치 없이 웹 브라우저만으로 필요한 기능을 손쉽게 활용할 수 있도록 만든 웹앱입니다.",
     "audience": "교육 현장 및 일상에서 웹앱 도구를 활용하고 싶은 모든 사용자",
     "description": [
@@ -102,7 +102,7 @@ window.PORTFOLIO_APPS = [
   {
     "id": "turtle-dobble",
     "title": "Turtle Dobble (휴대폰 버전, 간략)",
-    "tagline": "순발력과 관찰력으로 같은 글자를 찾아라! 혼자하기, 1:1 대결하기, 협동 보스전까지 즐기는 거북이 도블 모바일 게임",
+    "tagline": "도블 게임 기반 한글 및 알파벳 학습앱(휴대폰 버전)",
     "purpose": "순발력과 관찰력으로 같은 글자를 찾아라! 혼자하기, 1:1 대결하기, 협동 보스전까지 즐기는 거북이 도블 모바일 게임 — 교육과 일상생활에서 필요한 작업을 웹에서 간편하게 수행할 수 있도록 제작했습니다.",
     "audience": "교육 현장 및 일상에서 웹앱 도구를 활용하고 싶은 모든 사용자",
     "description": [
@@ -125,7 +125,7 @@ window.PORTFOLIO_APPS = [
   {
     "id": "pose-ninja-fruit",
     "title": "Pose Ninja Fruit - 모션 인식 슬라이스 게임",
-    "tagline": "웹캠/전면 카메라 모션 인식(MediaPipe Pose) 과일 슬라이스 게임 (Pose Ninja Fruit)",
+    "tagline": "모션 인식 과일 슬라이스 게임 + 갤러그 게임(실내 운동앱)",
     "purpose": "웹캠/전면 카메라 모션 인식(MediaPipe Pose) 과일 슬라이스 게임 (Pose Ninja Fruit) — 교육과 일상생활에서 필요한 작업을 웹에서 간편하게 수행할 수 있도록 제작했습니다.",
     "audience": "교육 현장 및 일상에서 웹앱 도구를 활용하고 싶은 모든 사용자",
     "description": [
