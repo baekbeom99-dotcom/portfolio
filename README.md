@@ -7,7 +7,7 @@
 
 ```text
 portfolio/
-├── index.html                  # 포트폴리오 메인 페이지 (예정)
+├── index.html                  # 포트폴리오 메인 페이지
 ├── css/                        # 스타일시트
 ├── js/                         # 상태·렌더링·뷰어 스크립트
 ├── data/
