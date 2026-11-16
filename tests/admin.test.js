@@ -646,3 +646,231 @@ test("initAdmin supports quick-toggle category chips, validation errors, downloa
   assert.equal(currentApps.length, 1);
   assert.equal(currentApps[0].id, "existing-app");
 });
+
+test("initAdmin preserves editingAppId on failed GitHub publish so renaming ID and retrying updates instead of duplicating", async () => {
+  const existingApp = {
+    id: "old-app",
+    title: "기존 앱",
+    tagline: "기존 소개",
+    purpose: "기존 목적",
+    audience: "학생",
+    description: ["사용법 1"],
+    thumbnail: "",
+    thumbnailFit: "auto",
+    launchType: "external",
+    url: "https://example.com/old",
+    embedMode: "newTab",
+    tags: ["교육"],
+    featured: false,
+    createdAt: "2026-11-10"
+  };
+
+  let currentApps = [existingApp];
+  const fetchImpl = async (url, init = {}) => {
+    if (url.startsWith("https://api.github.com/repos/")) {
+      const auth = (init.headers && (init.headers.Authorization || init.headers.authorization)) || "";
+      if (auth === "Bearer bad-token") {
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({ message: "Bad credentials" })
+        };
+      }
+      if ((init.method || "GET") === "GET") {
+        return { ok: false, status: 404, json: async () => ({ message: "Not Found" }) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          commit: { sha: "def5678", html_url: "https://github.com/baekbeom99-dotcom/portfolio/commit/def5678" }
+        })
+      };
+    }
+    return { ok: false, status: 404 };
+  };
+
+  const harness = loadAdminHarness({ fetchImpl, initialApps: currentApps });
+  harness.sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  const { doc, modalEl, PortfolioAdmin } = harness;
+
+  const controller = PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => currentApps,
+    getConfig: () => harness.sandbox.window.PORTFOLIO_CONFIG,
+    onAppsChanged: (next) => { currentApps = next; },
+    onAuthChanged: () => {},
+    onToast: () => {}
+  });
+
+  controller.open();
+
+  // Select existing app and rename its ID
+  const selectBtn = modalEl.querySelector(".admin-app-item-select");
+  assert.ok(selectBtn);
+  selectBtn.click();
+
+  const idInput = doc.getElementById("admin-app-id");
+  const tokenInput = doc.getElementById("admin-github-token");
+  const publishBtn = doc.getElementById("admin-publish-btn");
+  const ghStatus = doc.getElementById("admin-github-status");
+
+  idInput.value = "renamed-app";
+  tokenInput.value = "bad-token";
+  await publishBtn.click();
+  await new Promise((r) => setTimeout(r, 20));
+
+  // Failed publish must show error and keep catalog un-duplicated
+  assert.equal(ghStatus.classList.contains("is-error"), true);
+  assert.equal(currentApps.length, 1);
+  assert.equal(currentApps[0].id, "old-app");
+
+  // Fix token and retry publish -> must replace old-app with renamed-app (no duplicate)
+  tokenInput.value = "good-token";
+  await publishBtn.click();
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(ghStatus.classList.contains("is-ok"), true);
+  assert.equal(currentApps.length, 1, "Retrying after failed publish must update existing record rather than duplicating it");
+  assert.equal(currentApps[0].id, "renamed-app");
+  assert.equal(currentApps[0].createdAt, "2026-11-10");
+});
+
+test("initAdmin ignores stale in-flight GitHub publish resolution if modal closes before completion", async () => {
+  let resolvePut = null;
+  const fetchImpl = async (url, init = {}) => {
+    if (url.startsWith("https://api.github.com/repos/") && (init.method || "GET") === "GET") {
+      return { ok: false, status: 404, json: async () => ({ message: "Not Found" }) };
+    }
+    if (url.startsWith("https://api.github.com/repos/") && init.method === "PUT") {
+      return new Promise((resolve) => {
+        resolvePut = () => resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ commit: { sha: "late123" } })
+        });
+      });
+    }
+    return { ok: false, status: 404 };
+  };
+
+  let currentApps = [];
+  const harness = loadAdminHarness({ fetchImpl, initialApps: currentApps });
+  harness.sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  const { doc, modalEl, PortfolioAdmin } = harness;
+
+  const controller = PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => currentApps,
+    getConfig: () => harness.sandbox.window.PORTFOLIO_CONFIG,
+    onAppsChanged: (next) => { currentApps = next; },
+    onAuthChanged: () => {},
+    onToast: () => {}
+  });
+
+  controller.open();
+  doc.getElementById("admin-app-url").value = "https://example.com/app";
+  doc.getElementById("admin-app-id").value = "inflight-app";
+  doc.getElementById("admin-app-title").value = "진행중 앱";
+  doc.getElementById("admin-app-tagline").value = "소개";
+  doc.getElementById("admin-app-purpose").value = "목적";
+  doc.getElementById("admin-app-audience").value = "학생";
+  doc.getElementById("admin-app-description").value = "사용법";
+  doc.getElementById("admin-github-token").value = "ghp_valid";
+
+  const publishPromise = doc.getElementById("admin-publish-btn").click();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(resolvePut, "PUT request should be in flight");
+
+  // Close modal while publish is in flight
+  controller.close();
+  resolvePut();
+  await publishPromise;
+  await new Promise((r) => setTimeout(r, 10));
+
+  assert.equal(currentApps.length, 0, "Stale publish completion after modal close must not mutate state");
+});
+
+test("initAdmin validates thumbnail URLs/uploads and clears pending thumbnail with 썸네일 지우기", () => {
+  let currentApps = [];
+  const harness = loadAdminHarness({ initialApps: currentApps });
+  harness.sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  const { doc, modalEl, PortfolioAdmin } = harness;
+
+  const controller = PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => currentApps,
+    getConfig: () => harness.sandbox.window.PORTFOLIO_CONFIG,
+    onAppsChanged: (next) => { currentApps = next; },
+    onAuthChanged: () => {},
+    onToast: () => {}
+  });
+
+  controller.open();
+
+  const urlInput = doc.getElementById("admin-app-url");
+  const idInput = doc.getElementById("admin-app-id");
+  const titleInput = doc.getElementById("admin-app-title");
+  const taglineInput = doc.getElementById("admin-app-tagline");
+  const purposeInput = doc.getElementById("admin-app-purpose");
+  const audienceInput = doc.getElementById("admin-app-audience");
+  const descInput = doc.getElementById("admin-app-description");
+  const thumbUrlInput = doc.getElementById("admin-thumb-url");
+  const thumbFileInput = doc.getElementById("admin-thumb-file");
+  const clearThumbBtn = doc.getElementById("admin-thumb-clear-btn");
+  const thumbPreview = doc.getElementById("admin-thumb-preview");
+  const saveDraftBtn = doc.getElementById("admin-save-draft-btn");
+  const formError = doc.getElementById("admin-form-error");
+
+  assert.equal(thumbFileInput.getAttribute("accept"), ".png,.jpg,.jpeg,.webp,.gif,.svg");
+  assert.ok(clearThumbBtn);
+  assert.equal(clearThumbBtn.textContent, "썸네일 지우기");
+
+  urlInput.value = "https://example.com/valid";
+  idInput.value = "thumb-test";
+  titleInput.value = "썸네일 테스트";
+  taglineInput.value = "소개";
+  purposeInput.value = "목적";
+  audienceInput.value = "학생";
+  descInput.value = "사용법";
+
+  // Reject unsafe javascript: thumbnail URL
+  thumbUrlInput.value = "javascript:alert(1)";
+  saveDraftBtn.click();
+  assert.ok(formError.textContent.length > 0);
+  assert.equal(currentApps.length, 0);
+
+  // Reject root-absolute /root/thumb.png thumbnail URL
+  thumbUrlInput.value = "/root/thumb.png";
+  saveDraftBtn.click();
+  assert.ok(formError.textContent.length > 0);
+  assert.equal(currentApps.length, 0);
+
+  // Reject ./ traversal thumbnail URL
+  thumbUrlInput.value = "./assets/../secret.png";
+  saveDraftBtn.click();
+  assert.ok(formError.textContent.length > 0);
+  assert.equal(currentApps.length, 0);
+
+  // Reject unsupported file upload format (e.g. BMP or HTML)
+  thumbUrlInput.value = "";
+  thumbFileInput.files = [{ name: "bad.bmp", type: "image/bmp", _mockDataUrl: "data:image/bmp;base64,Qk0=" }];
+  thumbFileInput.dispatchEvent({ type: "change", target: thumbFileInput });
+  assert.ok(formError.textContent.length > 0);
+
+  // Valid upload sets pending thumbnail, then 썸네일 지우기 clears it cleanly back to fallback SVG
+  thumbFileInput.files = [{ name: "good.png", type: "image/png", _mockDataUrl: "data:image/png;base64,iVBORw0KGgo=" }];
+  thumbFileInput.dispatchEvent({ type: "change", target: thumbFileInput });
+  assert.equal(formError.textContent, "");
+  assert.equal(thumbPreview.querySelector(".app-card-img").src, "data:image/png;base64,iVBORw0KGgo=");
+
+  clearThumbBtn.click();
+  assert.equal(thumbUrlInput.value, "");
+  assert.equal(thumbFileInput.value, "");
+  assert.ok(thumbPreview.querySelector(".app-card-img").src.startsWith("data:image/svg+xml"));
+
+  saveDraftBtn.click();
+  assert.equal(currentApps.length, 1);
+  assert.equal(currentApps[0].thumbnail, "");
+  assert.equal(currentApps[0]._pendingThumbDataUrl, undefined);
+});

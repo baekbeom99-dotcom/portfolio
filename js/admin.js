@@ -374,6 +374,75 @@
     return typeof url === "string" && /^data:image\//i.test(url.trim());
   }
 
+  function validateThumbnailUrl(rawThumb) {
+    if (typeof rawThumb !== "string") {
+      return { valid: false, reason: "썸네일 경로 형식이 올바르지 않습니다." };
+    }
+    var trimmed = rawThumb.trim();
+    if (!trimmed) {
+      return { valid: true };
+    }
+    if (/[\u0000-\u001f\u007f]/.test(trimmed)) {
+      return { valid: false, reason: "썸네일 경로에 사용할 수 없는 제어 문자가 포함되어 있습니다." };
+    }
+
+    var lower = trimmed.toLowerCase();
+    if (lower.indexOf("data:") === 0) {
+      var parsedData = global.PortfolioGitHubSync && typeof global.PortfolioGitHubSync.parseDataUrlBase64 === "function"
+        ? global.PortfolioGitHubSync.parseDataUrlBase64(trimmed)
+        : null;
+      if (!parsedData) {
+        return {
+          valid: false,
+          reason: "지원되지 않는 이미지 데이터 형식입니다. PNG, JPG, WebP, GIF, SVG 파일만 사용할 수 있습니다."
+        };
+      }
+      return { valid: true };
+    }
+
+    if (trimmed.indexOf("./") === 0) {
+      if (trimmed.indexOf("\\") !== -1) {
+        return { valid: false, reason: "썸네일 경로에 역슬래시(\\)는 사용할 수 없습니다." };
+      }
+      var rawPath = trimmed.split(/[?#]/)[0];
+      var decodedPath;
+      try {
+        decodedPath = decodeURIComponent(rawPath);
+      } catch (_err) {
+        return { valid: false, reason: "올바르지 않은 썸네일 상대 경로입니다." };
+      }
+      if (
+        decodedPath.indexOf("\\") !== -1
+        || /(?:^|\/)\.\.(?:\/|$)/.test(rawPath)
+        || /(?:^|\/)\.\.(?:\/|$)/.test(decodedPath)
+      ) {
+        return { valid: false, reason: "썸네일 경로에 상위 경로 이동(..)은 사용할 수 없습니다." };
+      }
+      var subPath = decodedPath.slice(2);
+      if (!subPath || /^(?:\.\/)*\.?$/.test(subPath)) {
+        return { valid: false, reason: "올바른 ./ 썸네일 경로를 입력해 주세요." };
+      }
+      return { valid: true };
+    }
+
+    if (lower.indexOf("https://") === 0 || lower.indexOf("http://") === 0) {
+      try {
+        var parsedUrl = new URL(trimmed);
+        if ((parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") || !parsedUrl.hostname) {
+          return { valid: false, reason: "올바른 썸네일 웹 주소(https:// 또는 http://)를 입력해 주세요." };
+        }
+        return { valid: true };
+      } catch (_urlErr) {
+        return { valid: false, reason: "올바른 썸네일 웹 주소(https:// 또는 http://)를 입력해 주세요." };
+      }
+    }
+
+    return {
+      valid: false,
+      reason: "썸네일은 https://, http://, ./ 상대 경로 또는 지원되는 이미지 파일만 사용할 수 있습니다."
+    };
+  }
+
   function splitDescriptionLines(rawText) {
     if (typeof rawText !== "string") {
       return [];
@@ -495,6 +564,7 @@
     var pendingThumbDataUrl = "";
     var currentInspectResult = null;
     var inspectEpoch = 0;
+    var publishEpoch = 0;
 
     function isUnlocked() {
       return unlocked;
@@ -519,6 +589,7 @@
         return;
       }
       inspectEpoch += 1;
+      publishEpoch += 1;
       syncOverlayState(false);
       clearNode(modalEl);
       if (lastFocusedEl && typeof lastFocusedEl.focus === "function" && lastFocusedEl.isConnected !== false) {
@@ -530,6 +601,7 @@
     function lock() {
       unlocked = false;
       writeSessionUnlocked(false);
+      publishEpoch += 1;
       if (isOpen()) {
         close();
       }
@@ -658,6 +730,7 @@
       }
       clearNode(modalEl);
 
+      publishEpoch += 1;
       editingAppId = null;
       idManuallyEdited = false;
       pendingThumbDataUrl = "";
@@ -881,8 +954,20 @@
         attrs: {
           id: "admin-thumb-file",
           type: "file",
-          accept: "image/*"
+          accept: ".png,.jpg,.jpeg,.webp,.gif,.svg"
         }
+      });
+
+      var clearThumbBtn = el("button", {
+        className: "btn-secondary admin-thumb-clear-btn",
+        text: "썸네일 지우기",
+        props: { type: "button" },
+        attrs: { id: "admin-thumb-clear-btn" }
+      });
+
+      var thumbFileRow = el("div", {
+        className: "admin-thumb-file-row",
+        children: [thumbFileInput, clearThumbBtn]
       });
 
       var thumbFileNoteEl = el("span", { className: "admin-thumb-file-note" });
@@ -1240,16 +1325,37 @@
         }
         var reader = new ReaderCtor();
         reader.onload = function () {
-          if (typeof reader.result === "string") {
-            pendingThumbDataUrl = reader.result;
+          var result = typeof reader.result === "string" ? reader.result : "";
+          var parsed = global.PortfolioGitHubSync && typeof global.PortfolioGitHubSync.parseDataUrlBase64 === "function"
+            ? global.PortfolioGitHubSync.parseDataUrlBase64(result)
+            : null;
+          if (!parsed) {
+            pendingThumbDataUrl = "";
+            thumbFileInput.value = "";
             updateThumbFileNote();
             updateThumbPreview();
+            formErrorEl.textContent = "지원되지 않는 이미지 형식입니다. PNG, JPG, WebP, GIF, SVG 파일만 업로드할 수 있습니다.";
+            return;
           }
+          formErrorEl.textContent = "";
+          pendingThumbDataUrl = result;
+          thumbUrlInput.value = "";
+          updateThumbFileNote();
+          updateThumbPreview();
         };
         reader.onerror = function () {
           formErrorEl.textContent = "이미지 파일을 읽는 중 오류가 발생했습니다.";
         };
         reader.readAsDataURL(file);
+      });
+
+      clearThumbBtn.addEventListener("click", function () {
+        pendingThumbDataUrl = "";
+        thumbUrlInput.value = "";
+        thumbFileInput.value = "";
+        formErrorEl.textContent = "";
+        updateThumbFileNote();
+        updateThumbPreview();
       });
 
       // URL Inspection & Recommendation Apply
@@ -1423,6 +1529,11 @@
         }
 
         var thumbVal = pendingThumbDataUrl || thumbUrlInput.value.trim();
+        var thumbCheck = validateThumbnailUrl(thumbVal);
+        if (!thumbCheck.valid) {
+          formErrorEl.textContent = thumbCheck.reason;
+          return null;
+        }
         var fitVal = thumbFitSelect.value === "cover" || thumbFitSelect.value === "contain"
           ? thumbFitSelect.value
           : "auto";
@@ -1535,14 +1646,15 @@
 
             persistGhInputs();
             var appsToPublish = Array.isArray(getApps()) ? getApps().slice() : [];
-            if (hasAnyFormInput()) {
+            var nextEditingId = editingAppId;
+            var hasFormSubmission = hasAnyFormInput();
+            if (hasFormSubmission) {
               var validated = buildValidatedAppFromForm(appsToPublish);
               if (!validated) {
                 return;
               }
               appsToPublish = upsertAppRecord(appsToPublish, validated);
-              editingAppId = validated.id;
-              idManuallyEdited = true;
+              nextEditingId = validated.id;
             }
 
             var pendingThumbnails = Object.create(null);
@@ -1558,6 +1670,7 @@
               }
             }
 
+            var myPublishEpoch = ++publishEpoch;
             publishBtn.disabled = true;
             ghStatusEl.textContent = "GitHub에 게시하는 중...";
             ghStatusEl.className = "admin-github-status is-loading";
@@ -1573,6 +1686,15 @@
                 apps: appsToPublish,
                 pendingThumbnails: pendingThumbnails
               });
+
+              if (myPublishEpoch !== publishEpoch || !isOpen() || !isUnlocked()) {
+                return;
+              }
+
+              if (hasFormSubmission) {
+                editingAppId = nextEditingId;
+                idManuallyEdited = true;
+              }
 
               var publishedApps = Array.isArray(result.updatedApps) ? result.updatedApps : appsToPublish;
               global.PORTFOLIO_APPS = publishedApps.slice();
@@ -1596,12 +1718,17 @@
               ghStatusEl.className = "admin-github-status is-ok";
               onToast(successMsg);
             } catch (err) {
+              if (myPublishEpoch !== publishEpoch || !isOpen() || !isUnlocked()) {
+                return;
+              }
               var errMsg = err && err.message ? err.message : "GitHub 게시 중 오류가 발생했습니다.";
               ghStatusEl.textContent = errMsg;
               ghStatusEl.className = "admin-github-status is-error";
               onToast(errMsg);
             } finally {
-              publishBtn.disabled = false;
+              if (myPublishEpoch === publishEpoch) {
+                publishBtn.disabled = false;
+              }
             }
           }
         }
@@ -1750,7 +1877,7 @@
                     className: "admin-thumb-controls",
                     children: [
                       createFieldGroup("썸네일 이미지 경로 / URL", thumbUrlInput, "admin-thumb-url"),
-                      createFieldGroup("이미지 파일 업로드", thumbFileInput, "admin-thumb-file"),
+                      createFieldGroup("이미지 파일 업로드", thumbFileRow, "admin-thumb-file"),
                       thumbFileNoteEl,
                       createFieldGroup("썸네일 맞춤 방식", thumbFitSelect, "admin-thumb-fit")
                     ]

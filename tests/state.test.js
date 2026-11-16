@@ -175,4 +175,11 @@ test("setApps updates catalog, clears stale filters/selection, and notifies subs
   assert.equal(store.getState().viewerOpen, false);
   assert.deepEqual(Array.from(store.getAllTags()), ["건강", "생산성"]);
   assert.deepEqual(Array.from(store.getFilteredApps(), (a) => a.id), ["app-one"]);
+
+  // Even when launchFilter matches the only remaining launchType, reset to "all" when <2 distinct launch types exist
+  const mixedStore = createStore(SAMPLE_APPS);
+  mixedStore.setLaunchFilter("external");
+  assert.equal(mixedStore.getState().launchFilter, "external");
+  mixedStore.setApps([SAMPLE_APPS[0]]); // external only -> launch filter UI hidden
+  assert.equal(mixedStore.getState().launchFilter, "all", "launchFilter must reset when fewer than 2 launch types exist");
 });

@@ -222,8 +222,40 @@
     return getSafeUrl(url, ["https://", "http://", "mailto:"]);
   }
 
+  function isSafeRelativeAppsPath(trimmed) {
+    if (trimmed.indexOf("\\") !== -1) {
+      return false;
+    }
+    var rawPath = trimmed.split(/[?#]/)[0];
+    var decodedPath;
+    try {
+      decodedPath = decodeURIComponent(rawPath);
+    } catch (_err) {
+      return false;
+    }
+    if (
+      decodedPath.indexOf("\\") !== -1
+      || /(?:^|\/)\.\.(?:\/|$)/.test(rawPath)
+      || /(?:^|\/)\.\.(?:\/|$)/.test(decodedPath)
+    ) {
+      return false;
+    }
+    var subPath = decodedPath.slice(7);
+    if (!subPath || /^(?:\.\/)*\.?$/.test(subPath)) {
+      return false;
+    }
+    return true;
+  }
+
   function getSafeAppUrl(url) {
-    return getSafeUrl(url, ["https://", "http://", "./apps/"]);
+    var safe = getSafeUrl(url, ["https://", "http://", "./apps/"]);
+    if (!safe) {
+      return null;
+    }
+    if (safe.toLowerCase().indexOf("./apps/") === 0 && !isSafeRelativeAppsPath(safe)) {
+      return null;
+    }
+    return safe;
   }
 
   function getSafeThumbnailUrl(url) {

@@ -188,14 +188,23 @@
         state.activeTag = "all";
       }
       if (state.launchFilter !== "all") {
-        var hasMatchingLaunch = false;
+        var hasEmbedded = false;
+        var hasExternal = false;
         for (var i = 0; i < state.apps.length; i += 1) {
-          if (state.apps[i] && state.apps[i].launchType === state.launchFilter) {
-            hasMatchingLaunch = true;
+          var item = state.apps[i];
+          if (!item) {
+            continue;
+          }
+          if (item.launchType === "embedded") {
+            hasEmbedded = true;
+          } else if (item.launchType === "external") {
+            hasExternal = true;
+          }
+          if (hasEmbedded && hasExternal) {
             break;
           }
         }
-        if (!hasMatchingLaunch) {
+        if (!(hasEmbedded && hasExternal)) {
           state.launchFilter = "all";
         }
       }

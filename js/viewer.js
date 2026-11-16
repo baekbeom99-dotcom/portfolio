@@ -3,6 +3,31 @@
 
   var SAFE_APP_PREFIXES = ["https://", "http://", "./apps/"];
 
+  function isSafeRelativeAppsPath(trimmed) {
+    if (trimmed.indexOf("\\") !== -1) {
+      return false;
+    }
+    var rawPath = trimmed.split(/[?#]/)[0];
+    var decodedPath;
+    try {
+      decodedPath = decodeURIComponent(rawPath);
+    } catch (_err) {
+      return false;
+    }
+    if (
+      decodedPath.indexOf("\\") !== -1
+      || /(?:^|\/)\.\.(?:\/|$)/.test(rawPath)
+      || /(?:^|\/)\.\.(?:\/|$)/.test(decodedPath)
+    ) {
+      return false;
+    }
+    var subPath = decodedPath.slice(7);
+    if (!subPath || /^(?:\.\/)*\.?$/.test(subPath)) {
+      return false;
+    }
+    return true;
+  }
+
   function getSafeAppUrl(rawUrl) {
     if (typeof rawUrl !== "string") {
       return null;
@@ -14,6 +39,9 @@
     var lower = trimmed.toLowerCase();
     for (var i = 0; i < SAFE_APP_PREFIXES.length; i += 1) {
       if (lower.indexOf(SAFE_APP_PREFIXES[i]) === 0) {
+        if (SAFE_APP_PREFIXES[i] === "./apps/" && !isSafeRelativeAppsPath(trimmed)) {
+          return null;
+        }
         return trimmed;
       }
     }
