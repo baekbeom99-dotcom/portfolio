@@ -137,6 +137,9 @@ function createFakeDocument() {
       hasAttribute(name) {
         return Object.prototype.hasOwnProperty.call(attrs, String(name));
       },
+      removeAttribute(name) {
+        delete attrs[String(name)];
+      },
       appendChild(child) {
         if (child.parentNode) {
           child.parentNode.removeChild(child);
@@ -500,7 +503,8 @@ test("renderAppGrid renders cards safely via textContent, badges, audience, and 
 
   // Broken image onerror swaps once and guards with dataset.fallbackApplied
   assert.equal(mainImgs[0].src, "./assets/thumbnails/broken.png");
-  assert.equal(ambientImgs[0].src, "./assets/thumbnails/broken.png");
+  assert.equal(ambientImgs[0].src, "");
+  assert.equal(ambientImgs[0].loading, "lazy");
   assert.equal(mainImgs[0].loading, "lazy");
   mainImgs[0].dispatchEvent({ type: "error", target: mainImgs[0] });
   assert.ok(mainImgs[0].src.startsWith("data:image/svg+xml;charset=utf-8,"));
@@ -654,11 +658,33 @@ test("buildThumbnailFrame applies adaptive contain/cover fitting and clears cont
   const containAmbient = findFirst(containFrame, (n) => n.classList.contains("thumb-ambient-bg"));
   const containMain = findFirst(containFrame, (n) => n.classList.contains("app-card-img"));
   assert.equal(containAmbient.src, "./assets/thumbnails/portrait.png");
+  assert.equal(containAmbient.loading, "lazy");
   assert.equal(containAmbient.getAttribute("aria-hidden"), "true");
 
-  // Error removes is-contain-fit when falling back to 16:9 SVG
+  // Error removes is-contain-fit and clears ambientImg when falling back to 16:9 SVG
   containMain.dispatchEvent({ type: "error", target: containMain });
   assert.equal(containFrame.classList.contains("is-contain-fit"), false);
+  assert.equal(containAmbient.src, "");
+
+  // Missing or unsafe thumbnail never adds is-contain-fit, never sets ambientImg.src, and does not attach auto load
+  for (const invalidInput of [
+    { title: "없음", thumbnailFit: "contain" },
+    { title: "위험URL", thumbnail: "javascript:alert(1)", thumbnailFit: "contain" },
+    { title: "자동없음", thumbnailFit: "auto" },
+    { title: "자동위험", thumbnail: "data:text/html,xss" }
+  ]) {
+    const noThumbFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", invalidInput, true);
+    const noThumbAmbient = findFirst(noThumbFrame, (n) => n.classList.contains("thumb-ambient-bg"));
+    const noThumbMain = findFirst(noThumbFrame, (n) => n.classList.contains("app-card-img"));
+    assert.equal(noThumbFrame.classList.contains("is-contain-fit"), false);
+    assert.equal(noThumbAmbient.src, "");
+    assert.equal(noThumbAmbient.loading, "lazy");
+    noThumbMain.naturalWidth = 300;
+    noThumbMain.naturalHeight = 600;
+    noThumbMain.dispatchEvent({ type: "load", target: noThumbMain });
+    assert.equal(noThumbFrame.classList.contains("is-contain-fit"), false);
+    assert.equal(noThumbAmbient.src, "");
+  }
 
   // Explicit cover mode
   const coverFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", {
@@ -668,14 +694,18 @@ test("buildThumbnailFrame applies adaptive contain/cover fitting and clears cont
   }, false);
   assert.equal(coverFrame.classList.contains("is-cover-fit"), true);
   assert.equal(coverFrame.classList.contains("is-contain-fit"), false);
+  const coverAmbient = findFirst(coverFrame, (n) => n.classList.contains("thumb-ambient-bg"));
+  assert.equal(coverAmbient.src, "");
 
-  // Auto mode: portrait load triggers is-contain-fit; 16:9 load clears it; small width triggers it
+  // Auto mode: ambientImg.src stays deferred until load triggers is-contain-fit
   const autoFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", {
     title: "자동 앱",
     thumbnail: "./assets/thumbnails/auto.png"
-  }, false);
+  }, true);
   const autoMain = findFirst(autoFrame, (n) => n.classList.contains("app-card-img"));
   const autoAmbient = findFirst(autoFrame, (n) => n.classList.contains("thumb-ambient-bg"));
+  assert.equal(autoAmbient.src, "");
+  assert.equal(autoAmbient.loading, "lazy");
 
   autoMain.naturalWidth = 400;
   autoMain.naturalHeight = 800;

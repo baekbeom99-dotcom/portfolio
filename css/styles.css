@@ -501,6 +501,7 @@ a {
   position: absolute;
   inset: -14px;
   width: calc(100% + 28px);
+  max-width: none;
   height: calc(100% + 28px);
   object-fit: cover;
   filter: blur(18px) saturate(1.15) brightness(0.88);

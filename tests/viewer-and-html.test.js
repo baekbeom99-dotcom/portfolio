@@ -483,6 +483,7 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
     assert.ok(css.includes(selector), `Missing CSS rule for ${selector}`);
   }
   assert.match(css, /\.modal-dialog\s*>\s*\*[\s\S]*flex-shrink:\s*0/);
+  assert.match(css, /\.thumb-ambient-bg\s*\{[^}]*max-width:\s*none/);
 });
 
 function setupPortfolioHarness(options = {}) {

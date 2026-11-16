@@ -277,41 +277,45 @@
         "aria-hidden": "true"
       }
     });
+    if (isLazy) {
+      ambientImg.loading = "lazy";
+    }
     var mainImg = el("img", { className: imgClass || "app-card-img" });
 
     var safeThumb = getSafeThumbnailUrl(safeApp.thumbnail);
-    if (safeThumb) {
-      ambientImg.src = safeThumb;
-    }
-
     attachThumbnailFallback(mainImg, safeApp.thumbnail, safeApp.title, Boolean(isLazy));
 
     var fitMode = safeApp.thumbnailFit;
-    if (fitMode === "contain") {
-      frame.classList.add("is-contain-fit");
-    } else if (fitMode === "cover") {
+    if (fitMode === "cover") {
       frame.classList.add("is-cover-fit");
-    } else {
-      mainImg.addEventListener("load", function () {
-        if (mainImg.dataset && mainImg.dataset.fallbackApplied === "true") {
-          frame.classList.remove("is-contain-fit");
-          return;
-        }
-        var w = Number(mainImg.naturalWidth) || 0;
-        var h = Number(mainImg.naturalHeight) || 0;
-        if (w > 0 && h > 0 && (Math.abs((w / h) - (16 / 9)) > 0.28 || w < 360)) {
-          frame.classList.add("is-contain-fit");
-          if (!ambientImg.src && mainImg.src) {
-            ambientImg.src = mainImg.src;
+    } else if (safeThumb) {
+      if (fitMode === "contain") {
+        frame.classList.add("is-contain-fit");
+        ambientImg.src = safeThumb;
+      } else {
+        mainImg.addEventListener("load", function () {
+          if (mainImg.dataset && mainImg.dataset.fallbackApplied === "true") {
+            frame.classList.remove("is-contain-fit");
+            return;
           }
-        } else {
-          frame.classList.remove("is-contain-fit");
-        }
-      });
+          var w = Number(mainImg.naturalWidth) || 0;
+          var h = Number(mainImg.naturalHeight) || 0;
+          if (w > 0 && h > 0 && (Math.abs((w / h) - (16 / 9)) > 0.28 || w < 360)) {
+            frame.classList.add("is-contain-fit");
+            ambientImg.src = safeThumb;
+          } else {
+            frame.classList.remove("is-contain-fit");
+          }
+        });
+      }
     }
 
     mainImg.addEventListener("error", function () {
       frame.classList.remove("is-contain-fit");
+      if (typeof ambientImg.removeAttribute === "function") {
+        ambientImg.removeAttribute("src");
+      }
+      ambientImg.src = "";
     });
 
     frame.appendChild(ambientImg);
