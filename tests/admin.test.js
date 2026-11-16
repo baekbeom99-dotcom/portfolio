@@ -943,3 +943,56 @@ test("published cache persists across reload after publishToGitHub and surfaces 
   localStorage.setItem("ys_portfolio_published_cache", JSON.stringify(rawStored));
   assert.equal(PortfolioAdmin.loadPublishedCache(), null);
 });
+
+test("initAdmin new-category input supports Enter, + 추가 button, instant active chip, and auto-commit on save", () => {
+  let currentApps = [];
+  const harness = loadAdminHarness({ initialApps: currentApps });
+  harness.sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  const { doc, modalEl, PortfolioAdmin } = harness;
+
+  const controller = PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => currentApps,
+    getConfig: () => harness.sandbox.window.PORTFOLIO_CONFIG,
+    onAppsChanged: (next) => { currentApps = next; },
+    onAuthChanged: () => {},
+    onToast: () => {}
+  });
+
+  controller.open();
+
+  const newTagInput = doc.getElementById("admin-new-tag-input");
+  const addTagBtn = doc.getElementById("admin-add-tag-btn");
+  const tagsInput = doc.getElementById("admin-app-tags");
+  assert.ok(newTagInput, "Expected #admin-new-tag-input");
+  assert.ok(addTagBtn, "Expected #admin-add-tag-btn");
+
+  // Add via + 추가 button
+  newTagInput.value = "게임";
+  addTagBtn.click();
+  assert.equal(newTagInput.value, "");
+  assert.equal(tagsInput.value, "게임");
+  const gameChip = modalEl.querySelectorAll(".admin-tag-chip").find((n) => n.getAttribute("data-suggest-tag") === "게임");
+  assert.ok(gameChip && gameChip.className.includes("is-active"));
+
+  // Add via Enter key
+  newTagInput.value = "영어";
+  newTagInput.dispatchEvent({ type: "keydown", key: "Enter", preventDefault() {} });
+  assert.equal(newTagInput.value, "");
+  assert.equal(tagsInput.value, "게임, 영어");
+
+  // Uncommitted text in #admin-new-tag-input is also merged when saving draft
+  newTagInput.value = "초등";
+  doc.getElementById("admin-app-url").value = "https://example.com/english";
+  doc.getElementById("admin-app-id").value = "eng-game";
+  doc.getElementById("admin-app-title").value = "영어 게임";
+  doc.getElementById("admin-app-tagline").value = "재미있는 영어";
+  doc.getElementById("admin-app-purpose").value = "영어 학습";
+  doc.getElementById("admin-app-audience").value = "초등학생";
+  doc.getElementById("admin-app-description").value = "게임을 시작하세요.";
+  doc.getElementById("admin-save-draft-btn").click();
+
+  assert.equal(currentApps.length, 1);
+  assert.deepEqual(Array.from(currentApps[0].tags), ["게임", "영어", "초등"]);
+  assert.equal(newTagInput.value, "");
+});

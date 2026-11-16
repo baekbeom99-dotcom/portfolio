@@ -945,6 +945,27 @@
         }
       });
 
+      var newTagInput = el("input", {
+        className: "admin-input",
+        attrs: {
+          id: "admin-new-tag-input",
+          type: "text",
+          placeholder: "새 카테고리 입력 후 '추가' 또는 Enter"
+        }
+      });
+
+      var addTagBtn = el("button", {
+        className: "btn-secondary admin-add-tag-btn",
+        text: "추가",
+        props: { type: "button" },
+        attrs: { id: "admin-add-tag-btn" }
+      });
+
+      var tagAddRowEl = el("div", {
+        className: "admin-tag-add-row",
+        children: [newTagInput, addTagBtn]
+      });
+
       var tagSuggestionsEl = el("div", { className: "admin-tag-suggestions" });
 
       var purposeInput = el("textarea", {
@@ -1155,11 +1176,26 @@
 
       function renderTagSuggestionChips() {
         clearNode(tagSuggestionsEl);
-        var allTags = collectSuggestionTags(getApps());
+        var baseTags = collectSuggestionTags(getApps());
         var selectedTags = normalizeTagsInput(tagsInput.value);
         var selectedMap = Object.create(null);
         for (var s = 0; s < selectedTags.length; s += 1) {
           selectedMap[selectedTags[s]] = true;
+        }
+
+        var allTags = [];
+        var seenAll = Object.create(null);
+        for (var b = 0; b < baseTags.length; b += 1) {
+          if (!seenAll[baseTags[b]]) {
+            seenAll[baseTags[b]] = true;
+            allTags.push(baseTags[b]);
+          }
+        }
+        for (var c = 0; c < selectedTags.length; c += 1) {
+          if (!seenAll[selectedTags[c]]) {
+            seenAll[selectedTags[c]] = true;
+            allTags.push(selectedTags[c]);
+          }
         }
 
         for (var i = 0; i < allTags.length; i += 1) {
@@ -1198,6 +1234,19 @@
         }
       }
 
+      function commitNewTagInput() {
+        var added = normalizeTagsInput(newTagInput.value);
+        if (added.length === 0) {
+          return false;
+        }
+        var current = normalizeTagsInput(tagsInput.value);
+        var merged = normalizeTagsInput(current.concat(added));
+        tagsInput.value = merged.join(", ");
+        newTagInput.value = "";
+        renderTagSuggestionChips();
+        return true;
+      }
+
       function resetFormToNew() {
         editingAppId = null;
         idManuallyEdited = false;
@@ -1211,6 +1260,7 @@
         titleInput.value = "";
         taglineInput.value = "";
         tagsInput.value = "";
+        newTagInput.value = "";
         purposeInput.value = "";
         audienceInput.value = "";
         descInput.value = "";
@@ -1244,6 +1294,7 @@
         titleInput.value = app.title || "";
         taglineInput.value = app.tagline || "";
         tagsInput.value = Array.isArray(app.tags) ? app.tags.join(", ") : "";
+        newTagInput.value = "";
         purposeInput.value = app.purpose || "";
         audienceInput.value = app.audience || "";
         descInput.value = Array.isArray(app.description)
@@ -1364,6 +1415,21 @@
       });
 
       tagsInput.addEventListener("input", renderTagSuggestionChips);
+
+      addTagBtn.addEventListener("click", function () {
+        if (commitNewTagInput() && typeof newTagInput.focus === "function") {
+          newTagInput.focus();
+        }
+      });
+
+      newTagInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.isComposing) {
+          if (typeof event.preventDefault === "function") {
+            event.preventDefault();
+          }
+          commitNewTagInput();
+        }
+      });
 
       thumbUrlInput.addEventListener("input", function () {
         if (thumbUrlInput.value.trim()) {
@@ -1524,6 +1590,7 @@
 
       function buildValidatedAppFromForm(existingApps) {
         formErrorEl.textContent = "";
+        commitNewTagInput();
         var idVal = idInput.value.trim();
         var urlVal = urlInput.value.trim();
         var titleVal = titleInput.value.trim();
@@ -1907,12 +1974,13 @@
               }),
               createFieldGroup("한 줄 소개", taglineInput, "admin-app-tagline"),
               createFieldGroup(
-                "카테고리 (쉼표로 구분)",
-                tagsInput,
-                "admin-app-tags",
-                "아래 빠른 선택 버튼을 누르거나 원하는 카테고리를 직접 입력하세요."
+                "카테고리",
+                tagAddRowEl,
+                "admin-new-tag-input",
+                "새 카테고리를 입력해 추가하거나 아래 빠른 선택 버튼으로 켜고 끌 수 있습니다."
               ),
               tagSuggestionsEl,
+              createFieldGroup("선택된 카테고리 목록 (쉼표로 직접 수정 가능)", tagsInput, "admin-app-tags"),
               createFieldGroup("이 앱의 목적", purposeInput, "admin-app-purpose"),
               createFieldGroup("추천 대상", audienceInput, "admin-app-audience"),
               createFieldGroup("주요 내용 및 사용법 (줄바꿈으로 항목 구분)", descInput, "admin-app-description"),
