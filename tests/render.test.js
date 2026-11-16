@@ -35,6 +35,7 @@ function createFakeDocument() {
       tagName: upperTag,
       parentNode: null,
       children,
+      attributes: attrs,
       dataset: Object.create(null),
       hidden: false,
       style: {},
@@ -661,9 +662,11 @@ test("buildThumbnailFrame applies adaptive contain/cover fitting and clears cont
   assert.equal(containAmbient.loading, "lazy");
   assert.equal(containAmbient.getAttribute("aria-hidden"), "true");
 
-  // Error removes is-contain-fit and clears ambientImg when falling back to 16:9 SVG
+  // Error removes is-contain-fit and removes src attribute on ambientImg when falling back to 16:9 SVG
   containMain.dispatchEvent({ type: "error", target: containMain });
   assert.equal(containFrame.classList.contains("is-contain-fit"), false);
+  assert.equal(containAmbient.attributes.src, undefined);
+  assert.equal(containAmbient.hasAttribute("src"), false);
   assert.equal(containAmbient.src, "");
 
   // Missing or unsafe thumbnail never adds is-contain-fit, never sets ambientImg.src, and does not attach auto load

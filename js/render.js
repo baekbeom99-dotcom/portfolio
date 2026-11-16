@@ -314,8 +314,9 @@
       frame.classList.remove("is-contain-fit");
       if (typeof ambientImg.removeAttribute === "function") {
         ambientImg.removeAttribute("src");
+      } else {
+        ambientImg.src = "";
       }
-      ambientImg.src = "";
     });
 
     frame.appendChild(ambientImg);
