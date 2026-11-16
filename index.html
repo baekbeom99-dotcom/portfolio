@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Web App Studio — 웹앱 포트폴리오</title>
-  <meta name="description" content="일상의 작은 불편을 해결하기 위해 직접 만든 웹앱들을 목적·대상·사용법과 함께 소개하고 바로 실행할 수 있는 정적 웹앱 포트폴리오입니다." />
+  <title>윤선생 App Studio</title>
+  <meta name="description" content="교육용 및 일상생활을 위한 웹앱 공유 플랫폼" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="My Web App Studio — 웹앱 포트폴리오" />
-  <meta property="og:description" content="직접 만든 내장 웹앱과 외부 배포 웹앱을 한곳에서 둘러보고 바로 실행해 보세요." />
+  <meta property="og:title" content="윤선생 App Studio" />
+  <meta property="og:description" content="교육용 및 일상생활을 위한 웹앱 공유 플랫폼" />
   <link rel="stylesheet" href="./css/styles.css" />
   <script defer src="./data/apps.js"></script>
   <script defer src="./js/state.js"></script>
   <script defer src="./js/render.js"></script>
   <script defer src="./js/viewer.js"></script>
+  <script defer src="./js/recommender.js"></script>
+  <script defer src="./js/github-sync.js"></script>
+  <script defer src="./js/admin.js"></script>
   <script defer src="./js/app.js"></script>
 </head>
 <body>
@@ -20,6 +23,8 @@
     <header id="site-header" class="site-header"></header>
 
     <main id="main-content" class="portfolio-main">
+      <div id="draft-banner" class="draft-banner" hidden></div>
+
       <section class="controls-bar" aria-label="웹앱 검색 및 필터">
         <div class="controls-top">
           <div class="search-field">
@@ -61,6 +66,8 @@
   </div>
 
   <div id="detail-modal" class="detail-modal" hidden aria-hidden="true"></div>
+
+  <div id="admin-modal" class="modal-overlay" hidden aria-hidden="true"></div>
 
   <div
     id="viewer-overlay"

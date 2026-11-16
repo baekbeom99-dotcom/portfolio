@@ -222,12 +222,61 @@
     return getSafeUrl(url, ["https://", "http://", "mailto:"]);
   }
 
+  function isSafeRelativeAppsPath(trimmed) {
+    if (trimmed.indexOf("\\") !== -1) {
+      return false;
+    }
+    var rawPath = trimmed.split(/[?#]/)[0];
+    var decodedPath;
+    try {
+      decodedPath = decodeURIComponent(rawPath);
+    } catch (_err) {
+      return false;
+    }
+    if (
+      decodedPath.indexOf("\\") !== -1
+      || /(?:^|\/)\.\.(?:\/|$)/.test(rawPath)
+      || /(?:^|\/)\.\.(?:\/|$)/.test(decodedPath)
+    ) {
+      return false;
+    }
+    var subPath = decodedPath.slice(7);
+    if (!subPath || /^(?:\.\/)*\.?$/.test(subPath)) {
+      return false;
+    }
+    return true;
+  }
+
   function getSafeAppUrl(url) {
-    return getSafeUrl(url, ["https://", "http://", "./apps/"]);
+    var safe = getSafeUrl(url, ["https://", "http://", "./apps/"]);
+    if (!safe) {
+      return null;
+    }
+    if (safe.toLowerCase().indexOf("./apps/") === 0 && !isSafeRelativeAppsPath(safe)) {
+      return null;
+    }
+    return safe;
   }
 
   function getSafeThumbnailUrl(url) {
-    return getSafeUrl(url, ["https://", "http://", "./"]);
+    var basic = getSafeUrl(url, ["https://", "http://", "./"]);
+    if (basic) {
+      return basic;
+    }
+    if (typeof url !== "string") {
+      return null;
+    }
+    var trimmed = url.trim();
+    if (!trimmed || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+      return null;
+    }
+    if (/^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml)(?:;[^;,]+)*;base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^data:image\/svg\+xml(?:;charset=utf-8)?,[\s\S]+$/i.test(trimmed)) {
+      return trimmed;
+    }
+    return null;
   }
 
   function getLaunchTypeLabel(launchType) {
@@ -264,6 +313,66 @@
     });
   }
 
+  /**
+   * Builds a 16:9 thumbnail frame with ambient blurred backdrop and adaptive fit detection.
+   */
+  function buildThumbnailFrame(frameClass, imgClass, app, isLazy) {
+    var safeApp = app || {};
+    var frame = el("div", { className: frameClass || "app-card-thumb" });
+    var ambientImg = el("img", {
+      className: "thumb-ambient-bg",
+      attrs: {
+        alt: "",
+        "aria-hidden": "true"
+      }
+    });
+    if (isLazy) {
+      ambientImg.loading = "lazy";
+    }
+    var mainImg = el("img", { className: imgClass || "app-card-img" });
+
+    var safeThumb = getSafeThumbnailUrl(safeApp.thumbnail);
+    attachThumbnailFallback(mainImg, safeApp.thumbnail, safeApp.title, Boolean(isLazy));
+
+    var fitMode = safeApp.thumbnailFit;
+    if (fitMode === "cover") {
+      frame.classList.add("is-cover-fit");
+    } else if (safeThumb) {
+      if (fitMode === "contain") {
+        frame.classList.add("is-contain-fit");
+        ambientImg.src = safeThumb;
+      } else {
+        mainImg.addEventListener("load", function () {
+          if (mainImg.dataset && mainImg.dataset.fallbackApplied === "true") {
+            frame.classList.remove("is-contain-fit");
+            return;
+          }
+          var w = Number(mainImg.naturalWidth) || 0;
+          var h = Number(mainImg.naturalHeight) || 0;
+          if (w > 0 && h > 0 && (Math.abs((w / h) - (16 / 9)) > 0.28 || w < 360)) {
+            frame.classList.add("is-contain-fit");
+            ambientImg.src = safeThumb;
+          } else {
+            frame.classList.remove("is-contain-fit");
+          }
+        });
+      }
+    }
+
+    mainImg.addEventListener("error", function () {
+      frame.classList.remove("is-contain-fit");
+      if (typeof ambientImg.removeAttribute === "function") {
+        ambientImg.removeAttribute("src");
+      } else {
+        ambientImg.src = "";
+      }
+    });
+
+    frame.appendChild(ambientImg);
+    frame.appendChild(mainImg);
+    return frame;
+  }
+
   function renderTagChips(tags, className, limit) {
     if (!Array.isArray(tags) || tags.length === 0) {
       return null;
@@ -294,9 +403,9 @@
   }
 
   /**
-   * Renders the hero header with site metadata, safe contact link, and app count summary.
+   * Renders the hero header with site metadata, safe contact link, admin actions, and app count summary.
    */
-  function renderHeader(rootEl, config, stats) {
+  function renderHeader(rootEl, config, stats, callbacks) {
     if (!rootEl) {
       return;
     }
@@ -304,9 +413,17 @@
 
     var safeConfig = config || {};
     var safeStats = stats || {};
+    var safeCallbacks = callbacks || {};
     var totalCount = Number(safeStats.totalCount) || 0;
     var embeddedCount = Number(safeStats.embeddedCount) || 0;
     var externalCount = Number(safeStats.externalCount) || 0;
+    var isAdminUnlocked = Boolean(safeCallbacks.isAdminUnlocked);
+    var onOpenAdmin = typeof safeCallbacks.onOpenAdmin === "function"
+      ? safeCallbacks.onOpenAdmin
+      : function () {};
+    var onLockAdmin = typeof safeCallbacks.onLockAdmin === "function"
+      ? safeCallbacks.onLockAdmin
+      : function () {};
 
     var inner = el("div", { className: "hero-inner" });
     var copyBlock = el("div", { className: "hero-copy" });
@@ -353,6 +470,38 @@
       );
     }
 
+    var topActions = el("div", { className: "hero-top-actions" });
+    if (isAdminUnlocked) {
+      topActions.appendChild(
+        el("button", {
+          className: "btn-admin-entry",
+          text: "관리자 패널",
+          props: { type: "button" },
+          attrs: { id: "admin-toggle-btn" },
+          on: { click: onOpenAdmin }
+        })
+      );
+      topActions.appendChild(
+        el("button", {
+          className: "btn-admin-lock",
+          text: "잠금",
+          props: { type: "button" },
+          attrs: { id: "admin-lock-btn" },
+          on: { click: onLockAdmin }
+        })
+      );
+    } else {
+      topActions.appendChild(
+        el("button", {
+          className: "btn-admin-entry",
+          text: "관리자 모드",
+          props: { type: "button" },
+          attrs: { id: "admin-toggle-btn" },
+          on: { click: onOpenAdmin }
+        })
+      );
+    }
+
     var statsRow = el("div", {
       className: "hero-stats",
       children: [
@@ -362,8 +511,13 @@
       ]
     });
 
+    var sideCol = el("div", {
+      className: "hero-side",
+      children: [topActions, statsRow]
+    });
+
     inner.appendChild(copyBlock);
-    inner.appendChild(statsRow);
+    inner.appendChild(sideCol);
     rootEl.appendChild(inner);
   }
 
@@ -375,6 +529,13 @@
       return;
     }
     clearElement(containerEl);
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+      containerEl.hidden = true;
+      return;
+    }
+
+    containerEl.hidden = false;
 
     var activeTag = state && typeof state.activeTag === "string" ? state.activeTag : "all";
     var onSelectTag = callbacks && typeof callbacks.onSelectTag === "function"
@@ -417,10 +578,7 @@
       attrs: { "data-app-id": app.id || "" }
     });
 
-    var thumbFrame = el("div", { className: "app-card-thumb" });
-    var thumbImg = el("img", { className: "app-card-img" });
-    attachThumbnailFallback(thumbImg, app.thumbnail, app.title, true);
-    thumbFrame.appendChild(thumbImg);
+    var thumbFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", app, true);
     thumbFrame.appendChild(
       el("span", {
         className: getLaunchBadgeClass(app.launchType),
@@ -465,9 +623,9 @@
   }
 
   /**
-   * Renders the showcase app grid or an accessible empty state with a filter reset button.
+   * Renders the showcase app grid or an accessible empty state (catalog-empty vs filter-empty).
    */
-  function renderAppGrid(gridEl, apps, _state, callbacks) {
+  function renderAppGrid(gridEl, apps, state, callbacks) {
     if (!gridEl) {
       return;
     }
@@ -480,8 +638,34 @@
     var onResetFilters = callbacks && typeof callbacks.onResetFilters === "function"
       ? callbacks.onResetFilters
       : function () {};
+    var onOpenAdmin = callbacks && typeof callbacks.onOpenAdmin === "function"
+      ? callbacks.onOpenAdmin
+      : function () {};
 
     if (safeApps.length === 0) {
+      var isCatalogEmpty = Boolean(state && Array.isArray(state.apps) && state.apps.length === 0);
+      if (isCatalogEmpty) {
+        var catalogEmptyPanel = el("div", {
+          className: "empty-state is-catalog-empty",
+          attrs: { role: "status" },
+          children: [
+            el("h3", { className: "empty-state-title", text: "아직 등록된 웹앱이 없습니다." }),
+            el("p", {
+              className: "empty-state-desc",
+              text: "상단 '관리자 모드'에서 첫 웹앱과 썸네일을 등록해 보세요."
+            }),
+            el("button", {
+              className: "btn-primary btn-open-admin",
+              text: "관리자 모드에서 등록하기",
+              props: { type: "button" },
+              on: { click: onOpenAdmin }
+            })
+          ]
+        });
+        gridEl.appendChild(catalogEmptyPanel);
+        return;
+      }
+
       var emptyPanel = el("div", {
         className: "empty-state",
         attrs: { role: "status" },
@@ -597,10 +781,7 @@
       on: { click: onCloseDetail }
     });
 
-    var thumbWrap = el("div", { className: "modal-thumb-wrap" });
-    var thumbImg = el("img", { className: "modal-thumb-img" });
-    attachThumbnailFallback(thumbImg, app.thumbnail, app.title, false);
-    thumbWrap.appendChild(thumbImg);
+    var thumbWrap = buildThumbnailFrame("modal-thumb-wrap", "modal-thumb-img", app, false);
 
     var headerMeta = el("div", {
       className: "modal-header-meta",
@@ -703,6 +884,7 @@
 
   global.PortfolioRender = {
     createFallbackSvgDataUri: createFallbackSvgDataUri,
+    buildThumbnailFrame: buildThumbnailFrame,
     renderHeader: renderHeader,
     renderFilters: renderFilters,
     renderAppGrid: renderAppGrid,

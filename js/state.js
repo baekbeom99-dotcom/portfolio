@@ -182,6 +182,39 @@
       notify();
     }
 
+    function setApps(nextApps) {
+      state.apps = Array.isArray(nextApps) ? nextApps.slice() : [];
+      if (state.activeTag !== "all" && getAllTags().indexOf(state.activeTag) === -1) {
+        state.activeTag = "all";
+      }
+      if (state.launchFilter !== "all") {
+        var hasEmbedded = false;
+        var hasExternal = false;
+        for (var i = 0; i < state.apps.length; i += 1) {
+          var item = state.apps[i];
+          if (!item) {
+            continue;
+          }
+          if (item.launchType === "embedded") {
+            hasEmbedded = true;
+          } else if (item.launchType === "external") {
+            hasExternal = true;
+          }
+          if (hasEmbedded && hasExternal) {
+            break;
+          }
+        }
+        if (!(hasEmbedded && hasExternal)) {
+          state.launchFilter = "all";
+        }
+      }
+      if (state.selectedAppId && !findAppById(state.selectedAppId)) {
+        state.selectedAppId = null;
+        state.viewerOpen = false;
+      }
+      notify();
+    }
+
     function getFilteredApps() {
       var normalizedQuery = state.searchQuery.trim().toLowerCase();
       var featuredApps = [];
@@ -272,6 +305,7 @@
       openViewer: openViewer,
       closeViewer: closeViewer,
       setPreviewDevice: setPreviewDevice,
+      setApps: setApps,
       getFilteredApps: getFilteredApps,
       getAllTags: getAllTags,
       getSelectedApp: getSelectedApp,

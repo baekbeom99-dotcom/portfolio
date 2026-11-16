@@ -153,3 +153,33 @@ test("handles non-array input, case-insensitive search, and featured tie-breakin
   store.setSearchQuery("ALPHA");
   assert.deepEqual(Array.from(store.getFilteredApps(), (a) => a.id), ["first"]);
 });
+
+test("setApps updates catalog, clears stale filters/selection, and notifies subscribers", () => {
+  const { createStore } = loadStateModule();
+  const store = createStore(SAMPLE_APPS);
+
+  let notifications = 0;
+  store.subscribe(() => { notifications += 1; });
+
+  store.setActiveTag("디자인");
+  store.setLaunchFilter("embedded");
+  store.openDetail("app-two");
+  const beforeSet = notifications;
+
+  store.setApps([SAMPLE_APPS[0]]);
+  assert.equal(notifications, beforeSet + 1);
+  assert.equal(store.getState().apps.length, 1);
+  assert.equal(store.getState().activeTag, "all", "Stale activeTag must reset when no longer present");
+  assert.equal(store.getState().launchFilter, "all", "Stale launchFilter must reset when no apps match");
+  assert.equal(store.getState().selectedAppId, null, "Stale selectedAppId must clear when app is removed");
+  assert.equal(store.getState().viewerOpen, false);
+  assert.deepEqual(Array.from(store.getAllTags()), ["건강", "생산성"]);
+  assert.deepEqual(Array.from(store.getFilteredApps(), (a) => a.id), ["app-one"]);
+
+  // Even when launchFilter matches the only remaining launchType, reset to "all" when <2 distinct launch types exist
+  const mixedStore = createStore(SAMPLE_APPS);
+  mixedStore.setLaunchFilter("external");
+  assert.equal(mixedStore.getState().launchFilter, "external");
+  mixedStore.setApps([SAMPLE_APPS[0]]); // external only -> launch filter UI hidden
+  assert.equal(mixedStore.getState().launchFilter, "all", "launchFilter must reset when fewer than 2 launch types exist");
+});

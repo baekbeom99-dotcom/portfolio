@@ -15,15 +15,22 @@
     }
 
     var config = global.PORTFOLIO_CONFIG || {};
-    var apps = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS : [];
-    var store = global.PortfolioState.createStore(apps);
+    var baseApps = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS : [];
+    var draftApps =
+      global.PortfolioAdmin && typeof global.PortfolioAdmin.loadDraftApps === "function"
+        ? global.PortfolioAdmin.loadDraftApps()
+        : null;
+    var initialApps = draftApps !== null ? draftApps : baseApps;
+    var store = global.PortfolioState.createStore(initialApps);
 
     var headerEl = document.getElementById("site-header");
+    var draftBannerEl = document.getElementById("draft-banner");
     var searchInput = document.getElementById("search-input");
     var tagFiltersEl = document.getElementById("tag-filters");
     var appGridEl = document.getElementById("app-grid");
     var appsCountEl = document.getElementById("apps-count");
     var detailModalEl = document.getElementById("detail-modal");
+    var adminModalEl = document.getElementById("admin-modal");
     var viewerOverlayEl = document.getElementById("viewer-overlay");
     var viewerBackBtn = document.getElementById("viewer-back");
     var viewerCloseBtn = document.getElementById("viewer-close");
@@ -31,34 +38,98 @@
     var viewerMobileBtn = document.getElementById("viewer-device-mobile");
     var viewerCopyShareBtn = document.getElementById("viewer-copy-share");
     var toastEl = document.getElementById("toast");
+    var launchGroupEl = typeof document.querySelector === "function"
+      ? document.querySelector(".launch-filter-group")
+      : null;
     var launchFilterBtns = document.querySelectorAll("[data-launch-filter]");
 
     if (typeof config.siteTitle === "string" && config.siteTitle.trim()) {
       document.title = config.siteTitle.trim();
     }
 
-    var embeddedCount = 0;
-    var externalCount = 0;
-    var validCount = 0;
-    for (var i = 0; i < apps.length; i += 1) {
-      var item = apps[i];
-      if (!item) {
-        continue;
+    function computeStats(appList) {
+      var list = Array.isArray(appList) ? appList : [];
+      var embeddedCount = 0;
+      var externalCount = 0;
+      var totalCount = 0;
+      for (var i = 0; i < list.length; i += 1) {
+        var item = list[i];
+        if (!item) {
+          continue;
+        }
+        if (item.launchType === "embedded") {
+          embeddedCount += 1;
+          totalCount += 1;
+        } else if (item.launchType === "external") {
+          externalCount += 1;
+          totalCount += 1;
+        }
       }
-      if (item.launchType === "embedded") {
-        embeddedCount += 1;
-        validCount += 1;
-      } else if (item.launchType === "external") {
-        externalCount += 1;
-        validCount += 1;
+      return {
+        totalCount: totalCount,
+        embeddedCount: embeddedCount,
+        externalCount: externalCount
+      };
+    }
+
+    var currentStats = computeStats(initialApps);
+
+    function syncLaunchGroupVisibility(stats) {
+      if (launchGroupEl) {
+        launchGroupEl.hidden = !(stats.embeddedCount > 0 && stats.externalCount > 0);
       }
     }
 
-    global.PortfolioRender.renderHeader(headerEl, config, {
-      totalCount: validCount,
-      embeddedCount: embeddedCount,
-      externalCount: externalCount
-    });
+    syncLaunchGroupVisibility(currentStats);
+
+    var adminController = null;
+
+    function isAdminUnlocked() {
+      if (adminController && typeof adminController.isUnlocked === "function") {
+        return Boolean(adminController.isUnlocked());
+      }
+      return Boolean(
+        global.PortfolioAdmin &&
+        typeof global.PortfolioAdmin.isUnlocked === "function" &&
+        global.PortfolioAdmin.isUnlocked()
+      );
+    }
+
+    function isAdminOpen() {
+      if (adminController && typeof adminController.isOpen === "function") {
+        return Boolean(adminController.isOpen());
+      }
+      return Boolean(adminModalEl && !adminModalEl.hidden);
+    }
+
+    function handleOpenAdmin() {
+      if (adminController && typeof adminController.open === "function") {
+        adminController.open();
+      } else if (global.PortfolioAdmin && typeof global.PortfolioAdmin.open === "function") {
+        global.PortfolioAdmin.open();
+      }
+    }
+
+    function handleLockAdmin() {
+      if (adminController && typeof adminController.lock === "function") {
+        adminController.lock();
+      } else if (global.PortfolioAdmin && typeof global.PortfolioAdmin.lock === "function") {
+        global.PortfolioAdmin.lock();
+      }
+    }
+
+    function renderSiteHeader() {
+      global.PortfolioRender.renderHeader(
+        headerEl,
+        config,
+        currentStats,
+        {
+          isAdminUnlocked: isAdminUnlocked(),
+          onOpenAdmin: handleOpenAdmin,
+          onLockAdmin: handleLockAdmin
+        }
+      );
+    }
 
     var toastTimerId = null;
     function showToast(message) {
@@ -77,6 +148,107 @@
         toastTimerId = null;
       }, 2400);
     }
+
+    function clearNode(node) {
+      if (!node) {
+        return;
+      }
+      if (typeof node.replaceChildren === "function") {
+        node.replaceChildren();
+        return;
+      }
+      while (node.firstChild) {
+        node.removeChild(node.firstChild);
+      }
+    }
+
+    var lastFilterKey = null;
+    var lastModalAppId = undefined;
+
+    function handleAppsChanged(nextApps) {
+      var normalizedList = Array.isArray(nextApps) ? nextApps.slice() : [];
+      currentStats = computeStats(normalizedList);
+      syncLaunchGroupVisibility(currentStats);
+      renderSiteHeader();
+      renderDraftBanner();
+      lastFilterKey = null;
+      lastModalAppId = undefined;
+      if (typeof store.setApps === "function") {
+        store.setApps(normalizedList);
+      }
+    }
+
+    function renderDraftBanner() {
+      if (!draftBannerEl) {
+        return;
+      }
+      clearNode(draftBannerEl);
+      var hasDraft = Boolean(
+        global.PortfolioAdmin &&
+        typeof global.PortfolioAdmin.hasDraftApps === "function" &&
+        global.PortfolioAdmin.hasDraftApps()
+      );
+      if (!hasDraft) {
+        draftBannerEl.hidden = true;
+        return;
+      }
+
+      draftBannerEl.hidden = false;
+      var messageSpan = document.createElement("span");
+      messageSpan.className = "draft-banner-text";
+      messageSpan.textContent = "로컬 미리보기 중 · 'GitHub에 게시'를 누르기 전까지는 이 브라우저에만 보입니다.";
+
+      var resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "btn-secondary btn-reset-draft";
+      resetBtn.textContent = "초기화";
+      resetBtn.addEventListener("click", function () {
+        if (global.PortfolioAdmin && typeof global.PortfolioAdmin.clearDraftApps === "function") {
+          global.PortfolioAdmin.clearDraftApps();
+        }
+        var latestBase = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS : [];
+        handleAppsChanged(latestBase);
+        showToast("로컬 미리보기를 초기화했습니다.");
+      });
+
+      draftBannerEl.appendChild(messageSpan);
+      draftBannerEl.appendChild(resetBtn);
+    }
+
+    function syncBodyOverlayClass(state) {
+      if (!document.body) {
+        return;
+      }
+      var hasDetailOrViewer = Boolean(state && (state.selectedAppId || state.viewerOpen));
+      document.body.classList.toggle("has-overlay", hasDetailOrViewer || isAdminOpen());
+    }
+
+    if (
+      global.PortfolioAdmin &&
+      typeof global.PortfolioAdmin.initAdmin === "function" &&
+      adminModalEl
+    ) {
+      adminController = global.PortfolioAdmin.initAdmin({
+        modalEl: adminModalEl,
+        getApps: function () {
+          return store.getState().apps;
+        },
+        getConfig: function () {
+          return config;
+        },
+        onAppsChanged: handleAppsChanged,
+        onAuthChanged: function () {
+          renderSiteHeader();
+        },
+        onToast: showToast,
+        onOpenChange: function () {
+          syncBodyOverlayClass(store.getState());
+        }
+      });
+    }
+
+    renderSiteHeader();
+    renderDraftBanner();
 
     function copyAppShareLink(app) {
       if (!app || !app.id) {
@@ -110,9 +282,6 @@
       global.location.hash = targetHash;
     }
 
-    var allTags = store.getAllTags();
-    var lastFilterKey = null;
-    var lastModalAppId = undefined;
     var lastFocusedEl = null;
     var lastModalVisible = false;
     var lastViewerOpen = null;
@@ -144,6 +313,7 @@
       if (filterKey !== lastFilterKey) {
         lastFilterKey = filterKey;
 
+        var allTags = store.getAllTags();
         global.PortfolioRender.renderFilters(tagFiltersEl, allTags, state, {
           onSelectTag: function (tag) {
             store.setActiveTag(tag);
@@ -160,7 +330,8 @@
           },
           onResetFilters: function () {
             store.resetFilters();
-          }
+          },
+          onOpenAdmin: handleOpenAdmin
         });
 
         if (appsCountEl) {
@@ -169,8 +340,8 @@
             state.activeTag !== "all" ||
             state.launchFilter !== "all";
           appsCountEl.textContent = isFiltered
-            ? "총 " + validCount + "개 중 " + filteredApps.length + "개 표시"
-            : "전체 " + validCount + "개 웹앱";
+            ? "총 " + currentStats.totalCount + "개 중 " + filteredApps.length + "개 표시"
+            : "전체 " + currentStats.totalCount + "개 웹앱";
         }
       }
 
@@ -221,7 +392,7 @@
       }
 
       if (document.body) {
-        document.body.classList.toggle("has-overlay", Boolean(selectedApp || state.viewerOpen));
+        syncBodyOverlayClass(state);
       }
 
       if (isViewerVisible) {
@@ -309,6 +480,9 @@
       if (currentState.viewerOpen) {
         event.preventDefault();
         store.closeViewer();
+      } else if (isAdminOpen() && adminController && typeof adminController.close === "function") {
+        event.preventDefault();
+        adminController.close();
       } else if (currentState.selectedAppId) {
         event.preventDefault();
         store.closeDetail();
