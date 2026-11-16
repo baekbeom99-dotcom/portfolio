@@ -15,24 +15,7 @@ test("GitHub Pages config files (.nojekyll and deploy.yml) exist", () => {
   assert.match(workflow, /actions\/upload-pages-artifact/);
 });
 
-test("data/apps.js defines valid PORTFOLIO_CONFIG and PORTFOLIO_APPS", () => {
-  const dataPath = path.join(ROOT, "data", "apps.js");
-  assert.equal(fs.existsSync(dataPath), true);
-
-  const sandbox = { window: {} };
-  vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), sandbox);
-
-  const config = sandbox.window.PORTFOLIO_CONFIG;
-  const apps = sandbox.window.PORTFOLIO_APPS;
-
-  assert.equal(typeof config.siteTitle, "string");
-  assert.ok(config.siteTitle.length > 0);
-  assert.equal(typeof config.siteSubtitle, "string");
-  assert.equal(typeof config.ownerName, "string");
-
-  assert.ok(Array.isArray(apps));
-  assert.ok(apps.length >= 2, "Expected at least 2 sample entries (external + embedded)");
-
+function validateAppEntries(apps) {
   const ids = new Set();
   for (const app of apps) {
     assert.match(app.id, /^[a-z0-9-]+$/);
@@ -51,6 +34,13 @@ test("data/apps.js defines valid PORTFOLIO_CONFIG and PORTFOLIO_APPS", () => {
     assert.ok(["external", "embedded"].includes(app.launchType));
     assert.ok(["iframe", "newTab"].includes(app.embedMode));
 
+    if (app.thumbnailFit !== undefined) {
+      assert.ok(
+        ["auto", "cover", "contain"].includes(app.thumbnailFit),
+        `${app.id}.thumbnailFit must be auto, cover, or contain`
+      );
+    }
+
     if (app.launchType === "embedded") {
       assert.ok(app.url.startsWith("./apps/"), "Embedded app url must be relative ./apps/...");
       const targetFile = path.resolve(ROOT, app.url);
@@ -62,7 +52,46 @@ test("data/apps.js defines valid PORTFOLIO_CONFIG and PORTFOLIO_APPS", () => {
       assert.equal(fs.existsSync(thumbFile), true, `Missing thumbnail file: ${app.thumbnail}`);
     }
   }
+}
 
-  assert.ok(apps.some((a) => a.launchType === "embedded"));
-  assert.ok(apps.some((a) => a.launchType === "external"));
+test("data/apps.js defines valid PORTFOLIO_CONFIG and PORTFOLIO_APPS", () => {
+  const dataPath = path.join(ROOT, "data", "apps.js");
+  assert.equal(fs.existsSync(dataPath), true);
+
+  const sandbox = { window: {} };
+  vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), sandbox);
+
+  const config = sandbox.window.PORTFOLIO_CONFIG;
+  const apps = sandbox.window.PORTFOLIO_APPS;
+
+  assert.equal(config.siteTitle, "윤선생 App Studio");
+  assert.equal(config.siteSubtitle, "교육용 및 일상생활을 위한 웹앱 공유 플랫폼");
+  assert.equal(config.ownerName, "윤선생");
+  assert.equal(typeof config.contactLink, "string");
+
+  assert.ok(Array.isArray(apps));
+  assert.equal(apps.length, 0);
+
+  if (apps.length > 0) {
+    validateAppEntries(apps);
+  }
+});
+
+test("validateAppEntries validates optional thumbnailFit values when entries exist", () => {
+  for (const fit of ["auto", "cover", "contain"]) {
+    validateAppEntries([
+      {
+        id: `sample-${fit}`,
+        title: "샘플 앱",
+        tagline: "설명",
+        purpose: "목적",
+        audience: "대상",
+        description: ["사용법"],
+        launchType: "external",
+        url: "https://example.com",
+        embedMode: "newTab",
+        thumbnailFit: fit
+      }
+    ]);
+  }
 });

@@ -329,9 +329,47 @@ test("renderHeader renders config, stats, safe contactLink, and omits unsafe jav
   const mailtoLink = findFirst(rootEl, (n) => n.tagName === "A");
   assert.ok(mailtoLink);
   assert.equal(mailtoLink.href, "mailto:maker@example.com");
+
+  // Admin header actions: locked vs unlocked
+  let openCalls = 0;
+  let lockCalls = 0;
+  renderHeader(
+    rootEl,
+    { siteTitle: "윤선생 App Studio", siteSubtitle: "Sub", ownerName: "윤선생" },
+    { totalCount: 0, embeddedCount: 0, externalCount: 0 },
+    { isAdminUnlocked: false, onOpenAdmin: () => { openCalls += 1; } }
+  );
+  const lockedToggleBtn = findFirst(rootEl, (n) => n.id === "admin-toggle-btn");
+  assert.ok(lockedToggleBtn);
+  assert.equal(lockedToggleBtn.textContent, "관리자 모드");
+  assert.equal(lockedToggleBtn.type, "button");
+  assert.equal(findFirst(rootEl, (n) => n.id === "admin-lock-btn"), null);
+  lockedToggleBtn.click();
+  assert.equal(openCalls, 1);
+
+  renderHeader(
+    rootEl,
+    { siteTitle: "윤선생 App Studio", siteSubtitle: "Sub", ownerName: "윤선생" },
+    { totalCount: 0, embeddedCount: 0, externalCount: 0 },
+    {
+      isAdminUnlocked: true,
+      onOpenAdmin: () => { openCalls += 1; },
+      onLockAdmin: () => { lockCalls += 1; }
+    }
+  );
+  const unlockedToggleBtn = findFirst(rootEl, (n) => n.id === "admin-toggle-btn");
+  const lockBtn = findFirst(rootEl, (n) => n.id === "admin-lock-btn");
+  assert.ok(unlockedToggleBtn);
+  assert.equal(unlockedToggleBtn.textContent, "관리자 패널");
+  assert.ok(lockBtn);
+  assert.equal(lockBtn.textContent, "잠금");
+  unlockedToggleBtn.click();
+  lockBtn.click();
+  assert.equal(openCalls, 2);
+  assert.equal(lockCalls, 1);
 });
 
-test("renderFilters renders '전체' + tags with aria-pressed state and triggers onSelectTag", () => {
+test("renderFilters renders '전체' + tags with aria-pressed state and hides container when tags are empty", () => {
   const doc = createFakeDocument();
   const { renderFilters } = loadRenderModule(doc);
   const containerEl = doc.createElement("div");
@@ -344,6 +382,7 @@ test("renderFilters renders '전체' + tags with aria-pressed state and triggers
     { onSelectTag: (tag) => selected.push(tag) }
   );
 
+  assert.equal(containerEl.hidden, false);
   const buttons = findAll(containerEl, (n) => n.tagName === "BUTTON");
   assert.equal(buttons.length, 3);
 
@@ -361,9 +400,17 @@ test("renderFilters renders '전체' + tags with aria-pressed state and triggers
   buttons[2].click();
   buttons[0].click();
   assert.deepEqual(selected, ["유틸리티", "all"]);
+
+  renderFilters(containerEl, [], { activeTag: "all" }, {});
+  assert.equal(containerEl.hidden, true);
+  assert.equal(containerEl.children.length, 0);
+
+  renderFilters(containerEl, null, { activeTag: "all" }, {});
+  assert.equal(containerEl.hidden, true);
+  assert.equal(containerEl.children.length, 0);
 });
 
-test("renderAppGrid renders empty state with reset button when apps is empty", () => {
+test("renderAppGrid distinguishes catalog-empty vs filter-empty states", () => {
   const doc = createFakeDocument();
   const { renderAppGrid } = loadRenderModule(doc);
   const gridEl = doc.createElement("div");
@@ -376,10 +423,26 @@ test("renderAppGrid renders empty state with reset button when apps is empty", (
     { onResetFilters: () => { resetCalled += 1; } }
   );
 
+  assert.ok(gridEl.textContent.includes("조건에 맞는 웹앱이 없습니다."));
   const resetBtn = findFirst(gridEl, (n) => n.tagName === "BUTTON" && n.textContent.includes("필터 초기화"));
-  assert.ok(resetBtn, "Empty state should include '필터 초기화' button");
+  assert.ok(resetBtn, "Filter-empty state should include '필터 초기화' button");
   resetBtn.click();
   assert.equal(resetCalled, 1);
+
+  let openAdminCalled = 0;
+  renderAppGrid(
+    gridEl,
+    [],
+    { apps: [], searchQuery: "", activeTag: "all", launchFilter: "all" },
+    { onOpenAdmin: () => { openAdminCalled += 1; } }
+  );
+
+  assert.ok(gridEl.textContent.includes("아직 등록된 웹앱이 없습니다."));
+  assert.ok(gridEl.textContent.includes("상단 '관리자 모드'에서 첫 웹앱과 썸네일을 등록해 보세요."));
+  const adminBtn = findFirst(gridEl, (n) => n.tagName === "BUTTON" && n.textContent.includes("관리자 모드에서 등록하기"));
+  assert.ok(adminBtn, "Catalog-empty state should include '관리자 모드에서 등록하기' button");
+  adminBtn.click();
+  assert.equal(openAdminCalled, 1);
 });
 
 test("renderAppGrid renders cards safely via textContent, badges, audience, and thumbnail fallback", () => {
@@ -422,28 +485,31 @@ test("renderAppGrid renders cards safely via textContent, badges, audience, and 
   const cards = findAll(gridEl, (n) => n.tagName === "ARTICLE");
   assert.equal(cards.length, 2);
 
-  // Verify no injected <img> was parsed from xssTitle (only 1 thumbnail <img> per card)
-  const allImgs = findAll(gridEl, (n) => n.tagName === "IMG");
-  assert.equal(allImgs.length, 2);
+  // Verify no injected <img> was parsed from xssTitle (only 1 main .app-card-img + 1 ambient bg per card)
+  const mainImgs = findAll(gridEl, (n) => n.tagName === "IMG" && n.classList.contains("app-card-img"));
+  const ambientImgs = findAll(gridEl, (n) => n.tagName === "IMG" && n.classList.contains("thumb-ambient-bg"));
+  assert.equal(mainImgs.length, 2);
+  assert.equal(ambientImgs.length, 2);
   assert.ok(cards[0].textContent.includes(xssTitle));
   assert.ok(cards[0].textContent.includes("직접 탑재"));
   assert.ok(cards[0].textContent.includes("학생 및 직장인"));
 
   assert.ok(cards[1].textContent.includes("웹 링크"));
   assert.ok(cards[1].textContent.includes("개발자"));
-  assert.ok(allImgs[1].src.startsWith("data:image/svg+xml;charset=utf-8,"), "Missing thumbnail should use fallback SVG");
+  assert.ok(mainImgs[1].src.startsWith("data:image/svg+xml;charset=utf-8,"), "Missing thumbnail should use fallback SVG");
 
   // Broken image onerror swaps once and guards with dataset.fallbackApplied
-  assert.equal(allImgs[0].src, "./assets/thumbnails/broken.png");
-  assert.equal(allImgs[0].loading, "lazy");
-  allImgs[0].dispatchEvent({ type: "error", target: allImgs[0] });
-  assert.ok(allImgs[0].src.startsWith("data:image/svg+xml;charset=utf-8,"));
-  assert.ok(allImgs[0].dataset.fallbackApplied);
+  assert.equal(mainImgs[0].src, "./assets/thumbnails/broken.png");
+  assert.equal(ambientImgs[0].src, "./assets/thumbnails/broken.png");
+  assert.equal(mainImgs[0].loading, "lazy");
+  mainImgs[0].dispatchEvent({ type: "error", target: mainImgs[0] });
+  assert.ok(mainImgs[0].src.startsWith("data:image/svg+xml;charset=utf-8,"));
+  assert.ok(mainImgs[0].dataset.fallbackApplied);
 
   // Second error must be a no-op
-  allImgs[0].src = "sentinel-unchanged";
-  allImgs[0].dispatchEvent({ type: "error", target: allImgs[0] });
-  assert.equal(allImgs[0].src, "sentinel-unchanged");
+  mainImgs[0].src = "sentinel-unchanged";
+  mainImgs[0].dispatchEvent({ type: "error", target: mainImgs[0] });
+  assert.equal(mainImgs[0].src, "sentinel-unchanged");
 
   // Card trigger invokes onSelectApp(app.id)
   const triggers = findAll(gridEl, (n) => n.tagName === "BUTTON");
@@ -572,4 +638,77 @@ test("renderDetailModal hides on null app, renders structured sections, and swap
   assert.ok(blockedAnchor);
   assert.equal(blockedAnchor.href, "");
   assert.equal(blockedAnchor.getAttribute("aria-disabled"), "true");
+});
+
+test("buildThumbnailFrame applies adaptive contain/cover fitting and clears contain on fallback error", () => {
+  const doc = createFakeDocument();
+  const { buildThumbnailFrame, renderDetailModal } = loadRenderModule(doc);
+
+  // Explicit contain mode
+  const containFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", {
+    title: "세로 앱",
+    thumbnail: "./assets/thumbnails/portrait.png",
+    thumbnailFit: "contain"
+  }, true);
+  assert.equal(containFrame.classList.contains("is-contain-fit"), true);
+  const containAmbient = findFirst(containFrame, (n) => n.classList.contains("thumb-ambient-bg"));
+  const containMain = findFirst(containFrame, (n) => n.classList.contains("app-card-img"));
+  assert.equal(containAmbient.src, "./assets/thumbnails/portrait.png");
+  assert.equal(containAmbient.getAttribute("aria-hidden"), "true");
+
+  // Error removes is-contain-fit when falling back to 16:9 SVG
+  containMain.dispatchEvent({ type: "error", target: containMain });
+  assert.equal(containFrame.classList.contains("is-contain-fit"), false);
+
+  // Explicit cover mode
+  const coverFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", {
+    title: "커버 앱",
+    thumbnail: "./assets/thumbnails/wide.png",
+    thumbnailFit: "cover"
+  }, false);
+  assert.equal(coverFrame.classList.contains("is-cover-fit"), true);
+  assert.equal(coverFrame.classList.contains("is-contain-fit"), false);
+
+  // Auto mode: portrait load triggers is-contain-fit; 16:9 load clears it; small width triggers it
+  const autoFrame = buildThumbnailFrame("app-card-thumb", "app-card-img", {
+    title: "자동 앱",
+    thumbnail: "./assets/thumbnails/auto.png"
+  }, false);
+  const autoMain = findFirst(autoFrame, (n) => n.classList.contains("app-card-img"));
+  const autoAmbient = findFirst(autoFrame, (n) => n.classList.contains("thumb-ambient-bg"));
+
+  autoMain.naturalWidth = 400;
+  autoMain.naturalHeight = 800;
+  autoMain.dispatchEvent({ type: "load", target: autoMain });
+  assert.equal(autoFrame.classList.contains("is-contain-fit"), true);
+  assert.equal(autoAmbient.src, "./assets/thumbnails/auto.png");
+
+  autoMain.naturalWidth = 1280;
+  autoMain.naturalHeight = 720;
+  autoMain.dispatchEvent({ type: "load", target: autoMain });
+  assert.equal(autoFrame.classList.contains("is-contain-fit"), false);
+
+  autoMain.naturalWidth = 320;
+  autoMain.naturalHeight = 180;
+  autoMain.dispatchEvent({ type: "load", target: autoMain });
+  assert.equal(autoFrame.classList.contains("is-contain-fit"), true);
+
+  // Detail modal reuses adaptive thumbnail frame
+  const modalEl = doc.createElement("div");
+  renderDetailModal(modalEl, {
+    id: "portrait-modal",
+    title: "세로형 앱",
+    tagline: "설명",
+    purpose: "목적",
+    audience: "대상",
+    description: "내용",
+    thumbnail: "./assets/thumbnails/portrait.png",
+    thumbnailFit: "contain",
+    launchType: "external",
+    url: "https://example.com",
+    embedMode: "newTab"
+  }, {});
+  const modalThumbWrap = findFirst(modalEl, (n) => n.classList.contains("modal-thumb-wrap"));
+  assert.ok(modalThumbWrap);
+  assert.equal(modalThumbWrap.classList.contains("is-contain-fit"), true);
 });

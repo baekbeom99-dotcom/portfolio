@@ -418,12 +418,19 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     lastIndex = match.index;
   }
 
+  assert.match(html, /<title>윤선생 App Studio<\/title>/);
+  assert.match(html, /<meta\s+name=["']description["']\s+content=["']교육용 및 일상생활을 위한 웹앱 공유 플랫폼["']/);
+  assert.match(html, /<meta\s+property=["']og:title["']\s+content=["']윤선생 App Studio["']/);
+  assert.match(html, /<meta\s+property=["']og:description["']\s+content=["']교육용 및 일상생활을 위한 웹앱 공유 플랫폼["']/);
+
   for (const requiredId of [
     "site-header",
+    "draft-banner",
     "search-input",
     "tag-filters",
     "app-grid",
     "detail-modal",
+    "admin-modal",
     "viewer-overlay",
     "viewer-iframe",
     "toast"
@@ -431,6 +438,14 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     assert.match(html, new RegExp(`id=["']${requiredId}["']`), `Missing #${requiredId}`);
   }
   assert.match(html, /data-launch-filter=["']all["']/);
+
+  const draftIdx = html.indexOf('id="draft-banner"');
+  const controlsIdx = html.indexOf('class="controls-bar"');
+  assert.ok(draftIdx !== -1 && controlsIdx !== -1 && draftIdx < controlsIdx, "#draft-banner must appear above .controls-bar");
+
+  const detailIdx = html.indexOf('id="detail-modal"');
+  const adminIdx = html.indexOf('id="admin-modal"');
+  assert.ok(detailIdx !== -1 && adminIdx !== -1 && adminIdx > detailIdx, "#admin-modal must appear after #detail-modal");
 
   const viewerOverlayMatch = /<div[^>]*id=["']viewer-overlay["'][\s\S]*?<div[^>]*id=["']toast["']/i.exec(html);
   assert.ok(viewerOverlayMatch, "Missing #viewer-overlay section");
@@ -451,6 +466,12 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
   const css = fs.readFileSync(cssPath, "utf8");
 
   for (const selector of [
+    ".hero-top-actions",
+    ".btn-admin-entry",
+    ".btn-admin-lock",
+    ".draft-banner",
+    ".thumb-ambient-bg",
+    ".is-contain-fit",
     ".app-card",
     ".modal-dialog",
     ".modal-dialog > *",
@@ -552,14 +573,21 @@ function setupPortfolioHarness(options = {}) {
   overlayDom.overlay.appendChild(viewerCloseBtn);
   overlayDom.overlay.appendChild(viewerCopyShareBtn);
 
+  const launchGroupEl = doc.createElement("div");
+  launchGroupEl.className = "launch-filter-group";
   const launchBtns = ["all", "embedded", "external"].map((val) => {
     const btn = doc.createElement("button");
     btn.setAttribute("data-launch-filter", val);
     btn.setAttribute("aria-pressed", val === "all" ? "true" : "false");
     if (val === "all") btn.classList.add("is-active");
+    launchGroupEl.appendChild(btn);
     return btn;
   });
 
+  doc.querySelector = (selector) => {
+    if (selector === ".launch-filter-group") return launchGroupEl;
+    return null;
+  };
   doc.querySelectorAll = (selector) => {
     if (selector === "[data-launch-filter]") return launchBtns;
     return [];
@@ -567,6 +595,7 @@ function setupPortfolioHarness(options = {}) {
 
   doc.body.appendChild(headerEl);
   doc.body.appendChild(searchInput);
+  doc.body.appendChild(launchGroupEl);
   doc.body.appendChild(tagFiltersEl);
   doc.body.appendChild(appsCountEl);
   doc.body.appendChild(appGridEl);
@@ -606,8 +635,16 @@ function setupPortfolioHarness(options = {}) {
   };
   sandbox.window.window = sandbox.window;
 
+  if (options.portfolioAdmin) {
+    sandbox.window.PortfolioAdmin = options.portfolioAdmin;
+  }
+
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, "data/apps.js"), "utf8"), sandbox);
+  if (Array.isArray(options.apps)) {
+    sandbox.window.PORTFOLIO_APPS = options.apps;
+  }
+
   for (const relPath of [
-    "data/apps.js",
     "js/state.js",
     "js/render.js",
     "js/viewer.js",
@@ -620,16 +657,90 @@ function setupPortfolioHarness(options = {}) {
   return {
     doc,
     winListeners,
+    headerEl,
     searchInput,
+    tagFiltersEl,
     appGridEl,
     detailModalEl,
     overlayDom,
     viewerBackBtn,
+    launchGroupEl,
     launchBtns,
     locationObj,
     instance
   };
 }
+
+const SAMPLE_APPS = [
+  {
+    id: "sample-focus-timer",
+    title: "25분 집중 타이머",
+    tagline: "간단한 포모도로 타이머",
+    purpose: "집중 세션 관리",
+    audience: "학생 및 직장인",
+    description: ["시작 버튼을 누르세요."],
+    thumbnail: "./assets/thumbnails/sample-app.svg",
+    launchType: "embedded",
+    url: "./apps/sample-app/index.html",
+    embedMode: "iframe",
+    tags: ["생산성", "타이머"],
+    featured: true,
+    createdAt: "2026-11-16"
+  },
+  {
+    id: "github-deployed-example",
+    title: "외부 웹앱 예시",
+    tagline: "외부 링크 앱",
+    purpose: "공유",
+    audience: "모든 사용자",
+    description: ["새 탭에서 열립니다."],
+    thumbnail: "./assets/thumbnails/external-demo.svg",
+    launchType: "external",
+    url: "https://example.com",
+    embedMode: "newTab",
+    tags: ["유틸리티"],
+    featured: false,
+    createdAt: "2026-11-16"
+  }
+];
+
+test("PortfolioApp.initPortfolio hides launch filter and tag filters on empty initial catalog and wires admin hooks", () => {
+  let openCount = 0;
+  let lockCount = 0;
+  const {
+    headerEl,
+    tagFiltersEl,
+    appGridEl,
+    launchGroupEl
+  } = setupPortfolioHarness({
+    portfolioAdmin: {
+      isUnlocked: () => true,
+      open: () => { openCount += 1; },
+      lock: () => { lockCount += 1; }
+    }
+  });
+
+  assert.equal(launchGroupEl.hidden, true, "Launch filter group must hide when catalog is empty");
+  assert.equal(tagFiltersEl.hidden, true, "Tag filters must hide when no tags exist");
+  assert.ok(appGridEl.querySelector(".is-catalog-empty"), "Catalog-empty panel should render");
+
+  const headerAdminBtn = headerEl.querySelector("#admin-toggle-btn");
+  const headerLockBtn = headerEl.querySelector("#admin-lock-btn");
+  const emptyAdminBtn = appGridEl.querySelector(".btn-open-admin");
+  assert.ok(headerAdminBtn);
+  assert.ok(headerLockBtn);
+  assert.ok(emptyAdminBtn);
+  headerAdminBtn.click();
+  emptyAdminBtn.click();
+  headerLockBtn.click();
+  assert.equal(openCount, 2);
+  assert.equal(lockCount, 1);
+
+  // Single launch type (only embedded, 0 external) also hides launch filter group
+  const singleType = setupPortfolioHarness({ apps: [SAMPLE_APPS[0]] });
+  assert.equal(singleType.launchGroupEl.hidden, true, "Launch filter group must hide when only 1 launch type exists");
+  assert.equal(singleType.tagFiltersEl.hidden, false);
+});
 
 test("PortfolioApp.initPortfolio wires state, render, viewer, focus management, Escape order, and hashchange end-to-end", () => {
   const {
@@ -640,12 +751,14 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, focus management, 
     detailModalEl,
     overlayDom,
     viewerBackBtn,
+    launchGroupEl,
     launchBtns,
     locationObj,
     instance
-  } = setupPortfolioHarness();
+  } = setupPortfolioHarness({ apps: SAMPLE_APPS });
 
   assert.ok(instance && instance.store);
+  assert.equal(launchGroupEl.hidden, false, "Launch filter group should be visible when both launch types exist");
 
   // Header & initial grid rendered from data/apps.js
   assert.ok(appGridEl.children.length >= 2);
@@ -742,7 +855,7 @@ test("PortfolioApp.initPortfolio opens and closes cards cleanly when history.rep
     detailModalEl,
     locationObj,
     instance
-  } = setupPortfolioHarness({ location: fileLocation, history: throwingHistory });
+  } = setupPortfolioHarness({ apps: SAMPLE_APPS, location: fileLocation, history: throwingHistory });
 
   const cardTrigger = appGridEl.querySelector(".app-card-trigger");
   assert.ok(cardTrigger);

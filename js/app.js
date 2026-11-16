@@ -31,6 +31,9 @@
     var viewerMobileBtn = document.getElementById("viewer-device-mobile");
     var viewerCopyShareBtn = document.getElementById("viewer-copy-share");
     var toastEl = document.getElementById("toast");
+    var launchGroupEl = typeof document.querySelector === "function"
+      ? document.querySelector(".launch-filter-group")
+      : null;
     var launchFilterBtns = document.querySelectorAll("[data-launch-filter]");
 
     if (typeof config.siteTitle === "string" && config.siteTitle.trim()) {
@@ -54,11 +57,44 @@
       }
     }
 
-    global.PortfolioRender.renderHeader(headerEl, config, {
-      totalCount: validCount,
-      embeddedCount: embeddedCount,
-      externalCount: externalCount
-    });
+    if (launchGroupEl) {
+      launchGroupEl.hidden = !(embeddedCount > 0 && externalCount > 0);
+    }
+
+    function isAdminUnlocked() {
+      return Boolean(
+        global.PortfolioAdmin &&
+        typeof global.PortfolioAdmin.isUnlocked === "function" &&
+        global.PortfolioAdmin.isUnlocked()
+      );
+    }
+
+    function handleOpenAdmin() {
+      if (global.PortfolioAdmin && typeof global.PortfolioAdmin.open === "function") {
+        global.PortfolioAdmin.open();
+      }
+    }
+
+    function handleLockAdmin() {
+      if (global.PortfolioAdmin && typeof global.PortfolioAdmin.lock === "function") {
+        global.PortfolioAdmin.lock();
+      }
+    }
+
+    global.PortfolioRender.renderHeader(
+      headerEl,
+      config,
+      {
+        totalCount: validCount,
+        embeddedCount: embeddedCount,
+        externalCount: externalCount
+      },
+      {
+        isAdminUnlocked: isAdminUnlocked(),
+        onOpenAdmin: handleOpenAdmin,
+        onLockAdmin: handleLockAdmin
+      }
+    );
 
     var toastTimerId = null;
     function showToast(message) {
@@ -160,7 +196,8 @@
           },
           onResetFilters: function () {
             store.resetFilters();
-          }
+          },
+          onOpenAdmin: handleOpenAdmin
         });
 
         if (appsCountEl) {
