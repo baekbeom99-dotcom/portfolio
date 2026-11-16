@@ -133,6 +133,9 @@ test("sanitizeAppRecord strips transient _-prefixed keys and normalizes schema f
 
   const containRecord = sanitizeAppRecord({ id: "b", thumbnailFit: "contain" });
   assert.equal(containRecord.thumbnailFit, "contain");
+
+  const protoFitRecord = sanitizeAppRecord({ id: "c", thumbnailFit: "toString" });
+  assert.equal(protoFitRecord.thumbnailFit, "auto");
 });
 
 test("serializeAppsJs strips _pending* fields and round-trips through node:vm", () => {
@@ -473,4 +476,42 @@ test("publishToGitHub supports app._pendingThumbDataUrl when pendingThumbnails m
   assert.equal(uploadedPaths.length, 2);
   assert.match(uploadedPaths[0], /\/contents\/assets\/thumbnails\/svg-app\.svg$/);
   assert.match(uploadedPaths[1], /\/contents\/data\/apps\.js$/);
+});
+
+test("publishToGitHub rejects uppercase app IDs when uploading pending thumbnails", async () => {
+  const { publishToGitHub } = loadGitHubSync();
+  const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+  let fetchCalled = false;
+
+  await assert.rejects(
+    () =>
+      publishToGitHub({
+        owner: "yoon",
+        repo: "portfolio",
+        token: "tok",
+        config: {},
+        apps: [
+          {
+            id: "My-App",
+            title: "대문자 ID 앱",
+            tagline: "설명",
+            purpose: "목적",
+            audience: "대상",
+            description: ["안내"],
+            launchType: "external",
+            url: "https://example.com",
+            embedMode: "newTab"
+          }
+        ],
+        pendingThumbnails: {
+          "My-App": `data:image/png;base64,${pngBase64}`
+        },
+        fetchImpl: async () => {
+          fetchCalled = true;
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+      }),
+    /영문 소문자·숫자·하이픈/
+  );
+  assert.equal(fetchCalled, false);
 });

@@ -172,6 +172,10 @@
     return null;
   }
 
+  function hasOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
   function trimString(value) {
     return typeof value === "string" ? value.trim() : "";
   }
@@ -219,7 +223,7 @@
       ? src.embedMode
       : (launchType === "embedded" ? "iframe" : "newTab");
     var rawFit = trimString(src.thumbnailFit);
-    var thumbnailFit = VALID_THUMBNAIL_FITS[rawFit] ? rawFit : "auto";
+    var thumbnailFit = hasOwn(VALID_THUMBNAIL_FITS, rawFit) ? rawFit : "auto";
 
     return {
       id: trimString(src.id),
@@ -439,12 +443,12 @@
     for (var i = 0; i < rawApps.length; i += 1) {
       var rawApp = rawApps[i];
       var sanitized = sanitizeAppRecord(rawApp);
-      var pendingDataUrl = (pendingMap && sanitized.id && pendingMap[sanitized.id])
+      var pendingDataUrl = (pendingMap && sanitized.id && hasOwn(pendingMap, sanitized.id) && pendingMap[sanitized.id])
         || (rawApp && rawApp._pendingThumbDataUrl);
 
       var parsedImage = parseDataUrlBase64(pendingDataUrl);
       if (parsedImage) {
-        if (!sanitized.id || !/^[a-z0-9-]+$/i.test(sanitized.id)) {
+        if (!sanitized.id || !/^[a-z0-9-]+$/.test(sanitized.id)) {
           throw new Error("썸네일을 업로드하려면 영문 소문자·숫자·하이픈으로 된 앱 ID가 필요합니다.");
         }
         var thumbPath = "assets/thumbnails/" + sanitized.id + "." + parsedImage.ext;
