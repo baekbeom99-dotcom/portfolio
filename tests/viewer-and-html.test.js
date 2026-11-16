@@ -439,15 +439,17 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
   for (const selector of [
     ".app-card",
     ".modal-dialog",
+    ".modal-dialog > *",
     ".viewer-overlay",
     ".is-mobile",
     "@media (prefers-reduced-motion: reduce)"
   ]) {
     assert.ok(css.includes(selector), `Missing CSS rule for ${selector}`);
   }
+  assert.match(css, /\.modal-dialog\s*>\s*\*[\s\S]*flex-shrink:\s*0/);
 });
 
-test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, and hashchange end-to-end", () => {
+function setupPortfolioHarness(options = {}) {
   const doc = createFakeDom();
   const docListeners = Object.create(null);
   const winListeners = Object.create(null);
@@ -461,7 +463,6 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, 
     return el;
   };
 
-  // Enhance createFakeDom nodes with addEventListener/dispatchEvent + replaceChildren
   function enhanceDoc(baseDoc) {
     const origCreate = baseDoc.createElement;
     baseDoc.createElement = function (tag) {
@@ -481,6 +482,9 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, 
       };
       node.click = function () {
         node.dispatchEvent({ type: "click", target: node });
+      };
+      node.focus = function () {
+        baseDoc.activeElement = node;
       };
       node.replaceChildren = function (...nodes) {
         while (node.children.length > 0) {
@@ -555,11 +559,11 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, 
   doc.body.appendChild(overlayDom.overlay);
   doc.body.appendChild(toastEl);
 
-  const locationObj = {
+  const locationObj = options.location || {
     href: "https://example.github.io/portfolio/",
     hash: ""
   };
-  const historyObj = {
+  const historyObj = options.history || {
     replaceState(_state, _title, url) {
       const idx = url.indexOf("#");
       locationObj.href = url;
@@ -598,6 +602,34 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, 
   }
 
   const instance = sandbox.window.PortfolioApp.initPortfolio();
+  return {
+    doc,
+    winListeners,
+    searchInput,
+    appGridEl,
+    detailModalEl,
+    overlayDom,
+    viewerBackBtn,
+    launchBtns,
+    locationObj,
+    instance
+  };
+}
+
+test("PortfolioApp.initPortfolio wires state, render, viewer, focus management, Escape order, and hashchange end-to-end", () => {
+  const {
+    doc,
+    winListeners,
+    searchInput,
+    appGridEl,
+    detailModalEl,
+    overlayDom,
+    viewerBackBtn,
+    launchBtns,
+    locationObj,
+    instance
+  } = setupPortfolioHarness();
+
   assert.ok(instance && instance.store);
 
   // Header & initial grid rendered from data/apps.js
@@ -623,6 +655,44 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, 
   assert.equal(searchInput.value, "");
   assert.ok(appGridEl.children.length >= 2);
 
+  // Clicking a card moves focus into modal close button, and closing restores focus to card trigger
+  const firstCardTrigger = appGridEl.querySelector(".app-card-trigger");
+  assert.ok(firstCardTrigger);
+  firstCardTrigger.focus();
+  firstCardTrigger.click();
+  assert.equal(detailModalEl.hidden, false);
+  const modalCloseBtn = detailModalEl.querySelector(".modal-close");
+  assert.ok(modalCloseBtn);
+  assert.equal(doc.activeElement, modalCloseBtn, "Focus must move into modal close button on open");
+
+  // Launch viewer from detail modal -> focus moves to #viewer-back
+  const launchIframeBtn = detailModalEl.querySelector(".btn-primary");
+  assert.ok(launchIframeBtn);
+  launchIframeBtn.click();
+  assert.equal(overlayDom.overlay.hidden, false);
+  assert.equal(overlayDom.iframeEl.src, "./apps/sample-app/index.html");
+  assert.equal(detailModalEl.hidden, true);
+  assert.equal(doc.activeElement, viewerBackBtn, "Focus must move to viewer back button when mounted");
+
+  // Toggle mobile preview in viewer -> keeps focus on mobile toggle button
+  overlayDom.mobileBtn.focus();
+  overlayDom.mobileBtn.click();
+  assert.equal(overlayDom.stageEl.classList.contains("is-mobile"), true);
+  assert.equal(doc.activeElement, overlayDom.mobileBtn, "Toggling device must not steal focus");
+
+  // First Escape closes viewer back to detail modal, resets iframe, and returns focus to modal close button
+  doc.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+  assert.equal(overlayDom.overlay.hidden, true);
+  assert.equal(overlayDom.iframeEl.src, "about:blank");
+  assert.equal(detailModalEl.hidden, false);
+  assert.equal(doc.activeElement, detailModalEl.querySelector(".modal-close"));
+
+  // Second Escape closes detail modal, clears URL hash, and restores focus to triggering card button
+  doc.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+  assert.equal(detailModalEl.hidden, true);
+  assert.equal(locationObj.hash, "");
+  assert.equal(doc.activeElement, firstCardTrigger);
+
   // Open detail modal via hashchange
   locationObj.hash = "#app=sample-focus-timer";
   for (const fn of winListeners.hashchange || []) {
@@ -630,27 +700,40 @@ test("PortfolioApp.initPortfolio wires state, render, viewer, Escape key order, 
   }
   assert.equal(detailModalEl.hidden, false);
   assert.equal(instance.store.getState().selectedAppId, "sample-focus-timer");
+  assert.equal(doc.activeElement, detailModalEl.querySelector(".modal-close"));
+});
 
-  // Launch viewer from detail modal
-  const launchIframeBtn = detailModalEl.querySelector(".btn-primary");
-  assert.ok(launchIframeBtn);
-  launchIframeBtn.click();
-  assert.equal(overlayDom.overlay.hidden, false);
-  assert.equal(overlayDom.iframeEl.src, "./apps/sample-app/index.html");
-  assert.equal(detailModalEl.hidden, true);
+test("PortfolioApp.initPortfolio opens and closes cards cleanly when history.replaceState throws SecurityError on file://", () => {
+  const fileLocation = {
+    href: "file:///C:/portfolio/index.html",
+    hash: ""
+  };
+  const throwingHistory = {
+    replaceState() {
+      const err = new Error("Blocked a frame with origin \"null\"");
+      err.name = "SecurityError";
+      throw err;
+    }
+  };
 
-  // Toggle mobile preview in viewer
-  overlayDom.mobileBtn.click();
-  assert.equal(overlayDom.stageEl.classList.contains("is-mobile"), true);
+  const {
+    appGridEl,
+    detailModalEl,
+    locationObj,
+    instance
+  } = setupPortfolioHarness({ location: fileLocation, history: throwingHistory });
 
-  // First Escape closes viewer back to detail modal and resets iframe
-  doc.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
-  assert.equal(overlayDom.overlay.hidden, true);
-  assert.equal(overlayDom.iframeEl.src, "about:blank");
+  const cardTrigger = appGridEl.querySelector(".app-card-trigger");
+  assert.ok(cardTrigger);
+  cardTrigger.click();
   assert.equal(detailModalEl.hidden, false);
+  assert.equal(instance.store.getState().selectedAppId, "sample-focus-timer");
+  assert.equal(locationObj.hash, "#app=sample-focus-timer");
 
-  // Second Escape closes detail modal and clears URL hash
-  doc.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+  const closeBtn = detailModalEl.querySelector(".modal-close");
+  assert.ok(closeBtn);
+  closeBtn.click();
   assert.equal(detailModalEl.hidden, true);
+  assert.equal(instance.store.getState().selectedAppId, null);
   assert.equal(locationObj.hash, "");
 });

@@ -97,16 +97,32 @@
       }
       if (global.history && typeof global.history.replaceState === "function") {
         var baseUrl = String(global.location.href || "").split("#")[0];
-        global.history.replaceState(null, "", targetHash ? baseUrl + targetHash : baseUrl);
-      } else {
-        global.location.hash = targetHash;
+        try {
+          global.history.replaceState(null, "", targetHash ? baseUrl + targetHash : baseUrl);
+          return;
+        } catch (_err) {
+          // Fall back to location.hash on file:// opaque origins where replaceState throws SecurityError
+        }
       }
+      global.location.hash = targetHash;
     }
 
     var allTags = store.getAllTags();
     var lastFilterKey = null;
     var lastModalAppId = undefined;
     var lastFocusedEl = null;
+    var lastModalVisible = false;
+    var lastViewerOpen = false;
+
+    function focusFirstAvailable(candidates) {
+      for (var c = 0; c < candidates.length; c += 1) {
+        var target = candidates[c];
+        if (target && typeof target.focus === "function") {
+          target.focus();
+          return;
+        }
+      }
+    }
 
     function renderFromState(state) {
       if (searchInput && searchInput.value !== state.searchQuery) {
@@ -180,6 +196,11 @@
         }
       }
 
+      var wasModalVisible = lastModalVisible;
+      var wasViewerOpen = lastViewerOpen;
+      var isModalVisible = Boolean(selectedApp && !state.viewerOpen);
+      var isViewerVisible = false;
+
       if (state.viewerOpen && selectedApp) {
         var mounted = global.PortfolioViewer.mountViewer(
           viewerOverlayEl,
@@ -191,6 +212,7 @@
           store.closeViewer();
           return;
         }
+        isViewerVisible = true;
       } else {
         global.PortfolioViewer.unmountViewer(viewerOverlayEl);
       }
@@ -199,12 +221,29 @@
         document.body.classList.toggle("has-overlay", Boolean(selectedApp || state.viewerOpen));
       }
 
-      if (!selectedApp && lastFocusedEl && typeof lastFocusedEl.focus === "function") {
+      if (isViewerVisible) {
+        if (!wasViewerOpen) {
+          focusFirstAvailable([viewerBackBtn, viewerCloseBtn]);
+        }
+      } else if (isModalVisible) {
+        if (!wasModalVisible || wasViewerOpen) {
+          var modalCloseBtn = detailModalEl && typeof detailModalEl.querySelector === "function"
+            ? detailModalEl.querySelector(".modal-close")
+            : null;
+          var modalDialogEl = detailModalEl && typeof detailModalEl.querySelector === "function"
+            ? detailModalEl.querySelector(".modal-dialog")
+            : null;
+          focusFirstAvailable([modalCloseBtn, modalDialogEl]);
+        }
+      } else if (!selectedApp && lastFocusedEl && typeof lastFocusedEl.focus === "function") {
         if (lastFocusedEl.isConnected !== false) {
           lastFocusedEl.focus();
         }
         lastFocusedEl = null;
       }
+
+      lastModalVisible = isModalVisible;
+      lastViewerOpen = isViewerVisible;
 
       syncHashToApp(state.selectedAppId);
     }
