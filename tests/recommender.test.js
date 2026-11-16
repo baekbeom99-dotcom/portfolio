@@ -47,7 +47,12 @@ test("validateAppUrl accepts https, http, and ./apps/ paths while rejecting unsa
     "ftp://example.com/file",
     "/apps/sample-app/index.html",
     "./apps/",
+    "./apps/.",
+    "./apps/./",
     "./apps/../secret/index.html",
+    "./apps/foo\\..\\secret.html",
+    "./apps/%2e%2e/secret.html",
+    "./apps/%ZZ/index.html",
     "./other/index.html"
   ];
 

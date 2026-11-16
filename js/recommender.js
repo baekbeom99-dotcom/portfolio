@@ -58,7 +58,33 @@
     }
 
     if (trimmed.indexOf("./apps/") === 0) {
-      if (PATH_TRAVERSAL_PATTERN.test(trimmed)) {
+      if (trimmed.indexOf("\\") !== -1) {
+        return {
+          valid: false,
+          normalizedUrl: "",
+          launchType: "embedded",
+          reason: "역슬래시(\\)는 경로에 사용할 수 없습니다."
+        };
+      }
+
+      var rawRelativePath = trimmed.split(/[?#]/)[0];
+      var decodedRelativePath;
+      try {
+        decodedRelativePath = decodeURIComponent(rawRelativePath);
+      } catch (_decodeErr) {
+        return {
+          valid: false,
+          normalizedUrl: "",
+          launchType: "embedded",
+          reason: "올바르지 않은 퍼센트 인코딩 경로입니다."
+        };
+      }
+
+      if (
+        decodedRelativePath.indexOf("\\") !== -1
+        || PATH_TRAVERSAL_PATTERN.test(rawRelativePath)
+        || PATH_TRAVERSAL_PATTERN.test(decodedRelativePath)
+      ) {
         return {
           valid: false,
           normalizedUrl: "",
@@ -66,15 +92,30 @@
           reason: "상위 경로 이동(..)은 사용할 수 없습니다."
         };
       }
-      var relativeSubpath = trimmed.slice("./apps/".length).split(/[?#]/)[0];
-      if (!relativeSubpath || relativeSubpath === "/") {
+
+      try {
+        var resolvedRelative = new URL(decodedRelativePath, "https://app.local/");
+        if (
+          resolvedRelative.origin !== "https://app.local"
+          || resolvedRelative.pathname.indexOf("/apps/") !== 0
+          || resolvedRelative.pathname === "/apps/"
+        ) {
+          return {
+            valid: false,
+            normalizedUrl: "",
+            launchType: "embedded",
+            reason: "./apps/ 아래의 앱 폴더 또는 HTML 파일 경로를 입력해 주세요."
+          };
+        }
+      } catch (_relErr) {
         return {
           valid: false,
           normalizedUrl: "",
           launchType: "embedded",
-          reason: "./apps/ 아래의 앱 폴더 또는 HTML 파일 경로를 입력해 주세요."
+          reason: "올바른 ./apps/ 상대 경로 형식이 아닙니다."
         };
       }
+
       return {
         valid: true,
         normalizedUrl: trimmed,
