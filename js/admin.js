@@ -3,6 +3,8 @@
 
   var ADMIN_PASSWORD_SHA256 = "b1a8cd2856f2c9616455e1ae797e01e5443c30ca6c08e0931ab4ee22bf3c2525";
   var DRAFT_STORAGE_KEY = "ys_portfolio_apps_draft";
+  var PUBLISHED_CACHE_KEY = "ys_portfolio_published_cache";
+  var PUBLISHED_CACHE_TTL_MS = 5 * 60 * 1000;
   var SESSION_UNLOCK_KEY = "ys_portfolio_admin_unlocked";
   var GITHUB_SETTINGS_KEY = "ys_portfolio_github_settings";
 
@@ -247,6 +249,62 @@
 
   function hasDraftApps() {
     return loadDraftApps() !== null;
+  }
+
+  function clearPublishedCache() {
+    try {
+      var storage = getSafeStorage("localStorage");
+      if (storage && typeof storage.removeItem === "function") {
+        storage.removeItem(PUBLISHED_CACHE_KEY);
+      }
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function savePublishedCache(apps) {
+    try {
+      var storage = getSafeStorage("localStorage");
+      if (!storage || typeof storage.setItem !== "function") {
+        return false;
+      }
+      var list = Array.isArray(apps) ? apps : [];
+      var payload = {
+        apps: list,
+        publishedAt: Date.now()
+      };
+      storage.setItem(PUBLISHED_CACHE_KEY, JSON.stringify(payload));
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function loadPublishedCache() {
+    try {
+      var storage = getSafeStorage("localStorage");
+      if (!storage || typeof storage.getItem !== "function") {
+        return null;
+      }
+      var raw = storage.getItem(PUBLISHED_CACHE_KEY);
+      if (!raw) {
+        return null;
+      }
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.apps)) {
+        clearPublishedCache();
+        return null;
+      }
+      var publishedAt = typeof parsed.publishedAt === "number" ? parsed.publishedAt : 0;
+      if (!publishedAt || Date.now() - publishedAt > PUBLISHED_CACHE_TTL_MS) {
+        clearPublishedCache();
+        return null;
+      }
+      return parsed.apps;
+    } catch (_err) {
+      return null;
+    }
   }
 
   function loadGitHubSettings() {
@@ -1293,7 +1351,11 @@
 
       titleInput.addEventListener("input", function () {
         if (!editingAppId && !idManuallyEdited) {
-          var suggested = slugifyId(titleInput.value);
+          var rawTitle = titleInput.value.trim();
+          var suggested = slugifyId(rawTitle);
+          if (!suggested && rawTitle) {
+            suggested = "app-" + sha256Hex(rawTitle).slice(0, 8);
+          }
           if (suggested) {
             idInput.value = suggested;
           }
@@ -1651,6 +1713,10 @@
             if (hasFormSubmission) {
               var validated = buildValidatedAppFromForm(appsToPublish);
               if (!validated) {
+                var validationMsg = formErrorEl.textContent || "입력 항목을 확인해 주세요.";
+                ghStatusEl.textContent = validationMsg;
+                ghStatusEl.className = "admin-github-status is-error";
+                onToast(validationMsg);
                 return;
               }
               appsToPublish = upsertAppRecord(appsToPublish, validated);
@@ -1698,6 +1764,7 @@
 
               var publishedApps = Array.isArray(result.updatedApps) ? result.updatedApps : appsToPublish;
               global.PORTFOLIO_APPS = publishedApps.slice();
+              savePublishedCache(publishedApps);
               clearDraftApps();
               onAppsChanged(publishedApps);
 
@@ -1713,7 +1780,7 @@
                 renderTagSuggestionChips();
               }
 
-              var successMsg = "GitHub에 게시되었습니다. 약 20초 후 사이트에 반영됩니다.";
+              var successMsg = "GitHub에 게시되었습니다. (GitHub Pages 반영까지 약 30~40초 소요되며, 그 사이 새로고침해도 목록이 유지됩니다)";
               ghStatusEl.textContent = successMsg;
               ghStatusEl.className = "admin-github-status is-ok";
               onToast(successMsg);
@@ -1962,6 +2029,9 @@
     saveDraftApps: saveDraftApps,
     clearDraftApps: clearDraftApps,
     hasDraftApps: hasDraftApps,
+    loadPublishedCache: loadPublishedCache,
+    savePublishedCache: savePublishedCache,
+    clearPublishedCache: clearPublishedCache,
     initAdmin: initAdmin
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -70,7 +70,6 @@ test("data/apps.js defines valid PORTFOLIO_CONFIG and PORTFOLIO_APPS", () => {
   assert.equal(typeof config.contactLink, "string");
 
   assert.ok(Array.isArray(apps));
-  assert.equal(apps.length, 0);
 
   if (apps.length > 0) {
     validateAppEntries(apps);

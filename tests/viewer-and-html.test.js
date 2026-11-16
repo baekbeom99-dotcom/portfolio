@@ -569,6 +569,7 @@ function setupPortfolioHarness(options = {}) {
   }
 
   enhanceDoc(doc);
+  doc.head = doc.createElement("head");
 
   const headerEl = createWithId("header", "site-header");
   const draftBannerEl = createWithId("div", "draft-banner", { hidden: true });
@@ -672,6 +673,7 @@ function setupPortfolioHarness(options = {}) {
 
   const instance = sandbox.window.PortfolioApp.initPortfolio();
   return {
+    sandbox,
     doc,
     winListeners,
     headerEl,
@@ -732,6 +734,7 @@ test("PortfolioApp.initPortfolio hides launch filter and tag filters on empty in
     appGridEl,
     launchGroupEl
   } = setupPortfolioHarness({
+    apps: [],
     portfolioAdmin: {
       isUnlocked: () => true,
       open: () => { openCount += 1; },
@@ -967,4 +970,81 @@ test("PortfolioApp.initPortfolio renders draft banner, responds to onAppsChanged
   assert.equal(clearCount, 1);
   assert.equal(draftBannerEl.hidden, true);
   assert.equal(instance.store.getState().apps.length, 0);
+});
+
+test("PortfolioApp.initPortfolio preserves published cache across reload until cache-busted data/apps.js catches up", () => {
+  const freshApps = [
+    {
+      id: "animal-race",
+      title: "동물 달리기 추첨",
+      tagline: "교실 추첨",
+      purpose: "목적",
+      audience: "학생",
+      description: ["내용"],
+      launchType: "external",
+      url: "https://example.com/race",
+      embedMode: "newTab",
+      tags: ["교육"]
+    }
+  ];
+
+  let clearedPublishedCache = 0;
+  const h1 = setupPortfolioHarness({
+    apps: [],
+    location: { protocol: "https:", href: "https://example.github.io/portfolio/", hash: "" },
+    portfolioAdmin: {
+      isUnlocked: () => false,
+      loadDraftApps: () => null,
+      clearDraftApps: () => true,
+      hasDraftApps: () => false,
+      loadPublishedCache: () => freshApps,
+      clearPublishedCache: () => { clearedPublishedCache += 1; },
+      initAdmin: () => ({
+        isUnlocked: () => false,
+        isOpen: () => false,
+        open: () => {},
+        close: () => {},
+        lock: () => {}
+      })
+    }
+  });
+
+  // Immediately displays publishedCache even when stale cached data/apps.js had []
+  assert.equal(h1.appGridEl.children.length, 1);
+  assert.equal(h1.instance.store.getState().apps[0].id, "animal-race");
+
+  // Cache-busted script tag appended to document.head
+  assert.equal(h1.doc.head.children.length, 1);
+  const reloadScript = h1.doc.head.children[0];
+  assert.match(reloadScript.src, /^\.\/data\/apps\.js\?t=\d+$/);
+
+  // When server returns empty stale data first, publishedCache is NOT cleared
+  reloadScript.onload();
+  assert.equal(clearedPublishedCache, 0);
+  assert.equal(h1.instance.store.getState().apps.length, 1);
+
+  // When server catches up with matching freshApps, publishedCache clears cleanly
+  const h2 = setupPortfolioHarness({
+    apps: [],
+    location: { protocol: "https:", href: "https://example.github.io/portfolio/", hash: "" },
+    portfolioAdmin: {
+      isUnlocked: () => false,
+      loadDraftApps: () => null,
+      clearDraftApps: () => true,
+      hasDraftApps: () => false,
+      loadPublishedCache: () => freshApps,
+      clearPublishedCache: () => { clearedPublishedCache += 1; },
+      initAdmin: () => ({
+        isUnlocked: () => false,
+        isOpen: () => false,
+        open: () => {},
+        close: () => {},
+        lock: () => {}
+      })
+    }
+  });
+  h2.sandbox.window.PORTFOLIO_APPS = freshApps;
+  h2.doc.head.children[0].onload();
+  assert.equal(clearedPublishedCache, 1);
+  assert.equal(h2.instance.store.getState().apps.length, 1);
 });
