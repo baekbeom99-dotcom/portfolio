@@ -140,7 +140,7 @@ window.PORTFOLIO_APPS = [
     "embedMode": "newTab",
     "tags": [
       "교육",
-      "일상생활"
+      "체육"
     ],
     "featured": false,
     "createdAt": "2026-11-16"
@@ -165,5 +165,28 @@ window.PORTFOLIO_APPS = [
     ],
     "featured": false,
     "createdAt": "2026-11-16"
+  },
+  {
+    "id": "app-c264595d",
+    "title": "잡아라! 구구단 몬스터",
+    "tagline": "구구단 몬스터 탐험대: 구구단을 풀어 몬스터를 잡고 펫을 키우는 초등 3학년용 학습 웹앱",
+    "purpose": "구구단 몬스터 탐험대: 구구단을 풀어 몬스터를 잡고 펫을 키우는 초등 3학년용 학습 웹앱 — 학습자가 핵심 내용을 이해하고 스스로 연습할 수 있도록 돕기 위해 제작했습니다.",
+    "audience": "초·중·고 학생, 교사 및 자기주도 학습자",
+    "description": [
+      "화면에 안내된 단계에 따라 별도 설치 없이 바로 학습을 시작할 수 있습니다.",
+      "모바일과 데스크톱 환경 모두에 맞춰 편리하게 이용할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/app-c264595d.png",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/gugu-monster/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "수학",
+      "구구단"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-19"
   }
 ];
