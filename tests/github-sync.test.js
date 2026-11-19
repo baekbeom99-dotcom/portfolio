@@ -515,3 +515,124 @@ test("publishToGitHub rejects uppercase app IDs when uploading pending thumbnail
   );
   assert.equal(fetchCalled, false);
 });
+
+test("base64ToUtf8 and parseAppsFromAppsJs decode Korean apps.js safely without eval", () => {
+  const { utf8ToBase64, base64ToUtf8, parseAppsFromAppsJs, serializeAppsJs } = loadGitHubSync();
+  const sampleApps = [
+    {
+      id: "app-c264595d",
+      title: "잡아라! 구구단 몬스터",
+      tagline: "한글 \"따옴표\" [대괄호] 테스트",
+      purpose: "목적",
+      audience: "학생",
+      description: ["설명 [1]"],
+      thumbnail: "./assets/thumbnails/app-c264595d.png",
+      thumbnailFit: "auto",
+      launchType: "external",
+      url: "https://example.com/gugu",
+      embedMode: "newTab",
+      tags: ["교육", "수학"],
+      featured: false,
+      createdAt: "2026-11-19"
+    }
+  ];
+  const serialized = serializeAppsJs({ siteTitle: "윤선생 App Studio" }, sampleApps);
+  const b64 = utf8ToBase64(serialized);
+  const chunkedB64 = b64.match(/.{1,64}/g).join("\n");
+  assert.equal(base64ToUtf8(chunkedB64), serialized);
+
+  const parsed = parseAppsFromAppsJs(serialized);
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].id, "app-c264595d");
+  assert.equal(parsed[0].tagline, "한글 \"따옴표\" [대괄호] 테스트");
+  assert.deepEqual(Array.from(parseAppsFromAppsJs("not valid js")), []);
+});
+
+test("publishToGitHub merges newer remote apps absent from stale client list unless explicitly in deletedIds", async () => {
+  const { publishToGitHub, serializeAppsJs, utf8ToBase64, parseAppsFromAppsJs } = loadGitHubSync();
+  const remoteApps = [
+    {
+      id: "animal-race",
+      title: "동물 달리기",
+      tagline: "추첨",
+      purpose: "목적",
+      audience: "학생",
+      description: ["안내"],
+      launchType: "external",
+      url: "https://example.com/race",
+      embedMode: "newTab",
+      tags: ["교육"]
+    },
+    {
+      id: "app-c264595d",
+      title: "잡아라! 구구단 몬스터",
+      tagline: "구구단",
+      purpose: "목적",
+      audience: "학생",
+      description: ["안내"],
+      thumbnail: "./assets/thumbnails/app-c264595d.png",
+      launchType: "external",
+      url: "https://example.com/gugu",
+      embedMode: "newTab",
+      tags: ["교육", "수학"]
+    },
+    {
+      id: "old-removed",
+      title: "삭제할 앱",
+      tagline: "삭제",
+      purpose: "목적",
+      audience: "학생",
+      description: ["안내"],
+      launchType: "external",
+      url: "https://example.com/old",
+      embedMode: "newTab",
+      tags: ["교육"]
+    }
+  ];
+  const remoteSerialized = serializeAppsJs({ siteTitle: "윤선생 App Studio" }, remoteApps);
+  const remoteBase64 = utf8ToBase64(remoteSerialized);
+
+  let committedContent = "";
+  const result = await publishToGitHub({
+    owner: "yoon",
+    repo: "portfolio",
+    token: "tok",
+    config: { siteTitle: "윤선생 App Studio" },
+    apps: [
+      {
+        id: "animal-race",
+        title: "동물 달리기 (수정)",
+        tagline: "추첨",
+        purpose: "목적",
+        audience: "학생",
+        description: ["안내"],
+        launchType: "external",
+        url: "https://example.com/race",
+        embedMode: "newTab",
+        tags: ["교육"]
+      }
+    ],
+    deletedIds: ["old-removed"],
+    fetchImpl: async (url, opts = {}) => {
+      const method = (opts.method || "GET").toUpperCase();
+      if (method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ sha: "remote-sha", encoding: "base64", content: remoteBase64 })
+        };
+      }
+      committedContent = Buffer.from(JSON.parse(opts.body).content, "base64").toString("utf8");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ commit: { sha: "merged-sha" } })
+      };
+    }
+  });
+
+  const merged = parseAppsFromAppsJs(committedContent);
+  assert.deepEqual(Array.from(merged.map((a) => a.id)), ["animal-race", "app-c264595d"]);
+  assert.equal(merged[0].title, "동물 달리기 (수정)");
+  assert.deepEqual(Array.from(result.updatedApps.map((a) => a.id)), ["animal-race", "app-c264595d"]);
+});

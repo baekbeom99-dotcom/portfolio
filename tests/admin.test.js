@@ -996,3 +996,98 @@ test("initAdmin new-category input supports Enter, + 추가 button, instant acti
   assert.deepEqual(Array.from(currentApps[0].tags), ["게임", "영어", "초등"]);
   assert.equal(newTagInput.value, "");
 });
+
+test("initAdmin tracks deleted IDs across delete/rename, passes deletedIds to publishToGitHub, and clears on publish/reset", async () => {
+  let currentApps = [
+    {
+      id: "app-one",
+      title: "첫번째 앱",
+      tagline: "소개",
+      purpose: "목적",
+      audience: "학생",
+      description: ["내용"],
+      launchType: "external",
+      url: "https://example.com/1",
+      embedMode: "newTab",
+      tags: ["교육"]
+    },
+    {
+      id: "app-two",
+      title: "두번째 앱",
+      tagline: "소개",
+      purpose: "목적",
+      audience: "학생",
+      description: ["내용"],
+      launchType: "external",
+      url: "https://example.com/2",
+      embedMode: "newTab",
+      tags: ["교육"]
+    }
+  ];
+
+  let publishedBody = "";
+  const harness = loadAdminHarness({
+    initialApps: currentApps,
+    fetchImpl: async (url, init) => {
+      if (init && init.method === "PUT") {
+        publishedBody = Buffer.from(JSON.parse(init.body).content, "base64").toString("utf8");
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ commit: { sha: "s1" } })
+        };
+      }
+      // Remote still has both apps + a third app "app-remote" added elsewhere
+      const { serializeAppsJs, utf8ToBase64 } = harness.sandbox.window.PortfolioGitHubSync;
+      const remoteText = serializeAppsJs(harness.sandbox.window.PORTFOLIO_CONFIG, [
+        ...currentApps,
+        {
+          id: "app-remote",
+          title: "다른 세션 앱",
+          tagline: "소개",
+          purpose: "목적",
+          audience: "학생",
+          description: ["내용"],
+          launchType: "external",
+          url: "https://example.com/3",
+          embedMode: "newTab",
+          tags: ["교육"]
+        }
+      ]);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ sha: "r-sha", encoding: "base64", content: utf8ToBase64(remoteText) })
+      };
+    }
+  });
+  harness.sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  const { doc, modalEl, PortfolioAdmin } = harness;
+
+  const controller = PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => currentApps,
+    getConfig: () => harness.sandbox.window.PORTFOLIO_CONFIG,
+    onAppsChanged: (next) => { currentApps = next; },
+    onAuthChanged: () => {},
+    onToast: () => {}
+  });
+
+  controller.open();
+
+  // Delete app-two explicitly
+  const delTwoBtn = modalEl.querySelectorAll(".admin-app-delete-btn").find((b) => b.getAttribute("data-app-id") === "app-two");
+  assert.ok(delTwoBtn);
+  delTwoBtn.click();
+  assert.deepEqual(Array.from(PortfolioAdmin.loadDeletedIds()), ["app-two"]);
+
+  // Publish -> should exclude app-two (explicitly deleted) while preserving app-remote!
+  doc.getElementById("admin-github-token").value = "pat_ok";
+  await doc.getElementById("admin-publish-btn").click();
+  await new Promise((r) => setTimeout(r, 10));
+
+  assert.deepEqual(Array.from(PortfolioAdmin.loadDeletedIds()), []);
+  assert.deepEqual(Array.from(currentApps.map((a) => a.id)), ["app-one", "app-remote"]);
+  assert.ok(publishedBody.includes("app-remote"));
+  assert.equal(publishedBody.includes("app-two"), false);
+});

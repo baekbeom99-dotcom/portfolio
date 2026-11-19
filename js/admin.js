@@ -3,6 +3,7 @@
 
   var ADMIN_PASSWORD_SHA256 = "b1a8cd2856f2c9616455e1ae797e01e5443c30ca6c08e0931ab4ee22bf3c2525";
   var DRAFT_STORAGE_KEY = "ys_portfolio_apps_draft";
+  var DELETED_IDS_STORAGE_KEY = "ys_portfolio_deleted_ids";
   var PUBLISHED_CACHE_KEY = "ys_portfolio_published_cache";
   var PUBLISHED_CACHE_TTL_MS = 5 * 60 * 1000;
   var SESSION_UNLOCK_KEY = "ys_portfolio_admin_unlocked";
@@ -249,6 +250,86 @@
 
   function hasDraftApps() {
     return loadDraftApps() !== null;
+  }
+
+  function loadDeletedIds() {
+    try {
+      var storage = getSafeStorage("localStorage");
+      if (!storage || typeof storage.getItem !== "function") {
+        return [];
+      }
+      var raw = storage.getItem(DELETED_IDS_STORAGE_KEY);
+      if (!raw) {
+        return [];
+      }
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  function saveDeletedIds(ids) {
+    try {
+      var storage = getSafeStorage("localStorage");
+      if (!storage || typeof storage.setItem !== "function") {
+        return false;
+      }
+      var list = Array.isArray(ids) ? ids : [];
+      var seen = Object.create(null);
+      var cleaned = [];
+      for (var i = 0; i < list.length; i += 1) {
+        var id = typeof list[i] === "string" ? list[i].trim() : "";
+        if (id && !seen[id]) {
+          seen[id] = true;
+          cleaned.push(id);
+        }
+      }
+      if (cleaned.length === 0 && typeof storage.removeItem === "function") {
+        storage.removeItem(DELETED_IDS_STORAGE_KEY);
+      } else {
+        storage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(cleaned));
+      }
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function clearDeletedIds() {
+    try {
+      var storage = getSafeStorage("localStorage");
+      if (storage && typeof storage.removeItem === "function") {
+        storage.removeItem(DELETED_IDS_STORAGE_KEY);
+      }
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function markDeletedId(id) {
+    if (typeof id !== "string" || !id.trim()) {
+      return;
+    }
+    var current = loadDeletedIds();
+    current.push(id.trim());
+    saveDeletedIds(current);
+  }
+
+  function unmarkDeletedId(id) {
+    if (typeof id !== "string" || !id.trim()) {
+      return;
+    }
+    var target = id.trim();
+    var current = loadDeletedIds();
+    var next = [];
+    for (var i = 0; i < current.length; i += 1) {
+      if (current[i] !== target) {
+        next.push(current[i]);
+      }
+    }
+    saveDeletedIds(next);
   }
 
   function clearPublishedCache() {
@@ -1373,6 +1454,7 @@
                     }
                   }
                   saveDraftApps(nextList);
+                  markDeletedId(app.id);
                   onAppsChanged(nextList);
                   if (editingAppId === app.id) {
                     resetFormToNew();
@@ -1746,6 +1828,10 @@
               return;
             }
             var updated = upsertAppRecord(currentList, record);
+            if (editingAppId && editingAppId !== record.id) {
+              markDeletedId(editingAppId);
+            }
+            unmarkDeletedId(record.id);
             editingAppId = record.id;
             idManuallyEdited = true;
             var savedOk = saveDraftApps(updated);
@@ -1809,6 +1895,20 @@
             ghStatusEl.className = "admin-github-status is-loading";
             githubDetailsEl.open = true;
 
+            var pendingDeletedIds = loadDeletedIds();
+            if (hasFormSubmission && validated) {
+              if (editingAppId && editingAppId !== validated.id && pendingDeletedIds.indexOf(editingAppId) === -1) {
+                pendingDeletedIds.push(editingAppId);
+              }
+              var filteredDeleted = [];
+              for (var d = 0; d < pendingDeletedIds.length; d += 1) {
+                if (pendingDeletedIds[d] !== validated.id) {
+                  filteredDeleted.push(pendingDeletedIds[d]);
+                }
+              }
+              pendingDeletedIds = filteredDeleted;
+            }
+
             try {
               var result = await global.PortfolioGitHubSync.publishToGitHub({
                 owner: ghOwnerInput.value,
@@ -1817,7 +1917,8 @@
                 token: ghTokenInput.value,
                 config: getConfig(),
                 apps: appsToPublish,
-                pendingThumbnails: pendingThumbnails
+                pendingThumbnails: pendingThumbnails,
+                deletedIds: pendingDeletedIds
               });
 
               if (myPublishEpoch !== publishEpoch || !isOpen() || !isUnlocked()) {
@@ -1833,6 +1934,7 @@
               global.PORTFOLIO_APPS = publishedApps.slice();
               savePublishedCache(publishedApps);
               clearDraftApps();
+              clearDeletedIds();
               onAppsChanged(publishedApps);
 
               if (editingAppId) {
@@ -1914,6 +2016,7 @@
         on: {
           click: function () {
             clearDraftApps();
+            clearDeletedIds();
             var baseApps = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS.slice() : [];
             onAppsChanged(baseApps);
             resetFormToNew();
@@ -2097,6 +2200,8 @@
     saveDraftApps: saveDraftApps,
     clearDraftApps: clearDraftApps,
     hasDraftApps: hasDraftApps,
+    loadDeletedIds: loadDeletedIds,
+    clearDeletedIds: clearDeletedIds,
     loadPublishedCache: loadPublishedCache,
     savePublishedCache: savePublishedCache,
     clearPublishedCache: clearPublishedCache,

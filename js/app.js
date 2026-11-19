@@ -214,6 +214,9 @@
         if (global.PortfolioAdmin && typeof global.PortfolioAdmin.clearDraftApps === "function") {
           global.PortfolioAdmin.clearDraftApps();
         }
+        if (global.PortfolioAdmin && typeof global.PortfolioAdmin.clearDeletedIds === "function") {
+          global.PortfolioAdmin.clearDeletedIds();
+        }
         var latestBase = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS : [];
         handleAppsChanged(latestBase);
         showToast("로컬 미리보기를 초기화했습니다.");

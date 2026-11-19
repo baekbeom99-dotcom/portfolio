@@ -120,6 +120,187 @@
     return bytesToBase64Pure(encodeUtf8BytesPure(str));
   }
 
+  function base64ToBytesPure(cleanB64) {
+    var bytes = [];
+    for (var i = 0; i < cleanB64.length; i += 4) {
+      var c0 = BASE64_ALPHABET.indexOf(cleanB64.charAt(i));
+      var c1 = BASE64_ALPHABET.indexOf(cleanB64.charAt(i + 1));
+      var ch2 = cleanB64.charAt(i + 2);
+      var ch3 = cleanB64.charAt(i + 3);
+      var c2 = ch2 === "=" ? 0 : BASE64_ALPHABET.indexOf(ch2);
+      var c3 = ch3 === "=" ? 0 : BASE64_ALPHABET.indexOf(ch3);
+      if (c0 === -1 || c1 === -1 || c2 === -1 || c3 === -1) {
+        return null;
+      }
+      var triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
+      bytes.push((triplet >> 16) & 0xff);
+      if (ch2 !== "=") {
+        bytes.push((triplet >> 8) & 0xff);
+      }
+      if (ch3 !== "=") {
+        bytes.push(triplet & 0xff);
+      }
+    }
+    return bytes;
+  }
+
+  function decodeUtf8BytesPure(bytes) {
+    var out = "";
+    var i = 0;
+    while (i < bytes.length) {
+      var b0 = bytes[i];
+      if (b0 < 0x80) {
+        out += String.fromCharCode(b0);
+        i += 1;
+      } else if ((b0 & 0xe0) === 0xc0 && i + 1 < bytes.length) {
+        out += String.fromCharCode(((b0 & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
+        i += 2;
+      } else if ((b0 & 0xf0) === 0xe0 && i + 2 < bytes.length) {
+        out += String.fromCharCode(
+          ((b0 & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f)
+        );
+        i += 3;
+      } else if ((b0 & 0xf8) === 0xf0 && i + 3 < bytes.length) {
+        var cp =
+          ((b0 & 0x07) << 18)
+          | ((bytes[i + 1] & 0x3f) << 12)
+          | ((bytes[i + 2] & 0x3f) << 6)
+          | (bytes[i + 3] & 0x3f);
+        var offset = cp - 0x10000;
+        out += String.fromCharCode(0xd800 + (offset >> 10), 0xdc00 + (offset & 0x3ff));
+        i += 4;
+      } else {
+        out += "\ufffd";
+        i += 1;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Decodes a Base64 string (including line-wrapped GitHub API payloads) into UTF-8 text.
+   */
+  function base64ToUtf8(base64Text) {
+    if (typeof base64Text !== "string") {
+      return "";
+    }
+    var clean = base64Text.replace(/\s+/g, "");
+    if (!clean) {
+      return "";
+    }
+
+    if (typeof atob === "function" && typeof TextDecoder === "function") {
+      try {
+        var binary = atob(clean);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return new TextDecoder("utf-8").decode(bytes);
+      } catch (_err) {
+        // Fall through to alternative decoders.
+      }
+    }
+
+    if (typeof Buffer === "function" && typeof Buffer.from === "function") {
+      return Buffer.from(clean, "base64").toString("utf8");
+    }
+
+    var pureBytes = base64ToBytesPure(clean);
+    return pureBytes ? decodeUtf8BytesPure(pureBytes) : "";
+  }
+
+  /**
+   * Extracts and JSON-parses the window.PORTFOLIO_APPS array from serialized data/apps.js text without eval.
+   */
+  function parseAppsFromAppsJs(jsText) {
+    if (typeof jsText !== "string" || !jsText) {
+      return [];
+    }
+    var match = /window\.PORTFOLIO_APPS\s*=\s*\[/.exec(jsText);
+    if (!match) {
+      return [];
+    }
+    var startIdx = match.index + match[0].length - 1;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    var endIdx = -1;
+
+    for (var i = startIdx; i < jsText.length; i += 1) {
+      var ch = jsText.charAt(i);
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (inString) {
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === "\"") {
+        inString = true;
+      } else if (ch === "[") {
+        depth += 1;
+      } else if (ch === "]") {
+        depth -= 1;
+        if (depth === 0) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (endIdx === -1) {
+      return [];
+    }
+    try {
+      var parsed = JSON.parse(jsText.slice(startIdx, endIdx + 1));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  function mergeAppsWithRemote(remoteApps, localApps, deletedIds) {
+    var deletedMap = Object.create(null);
+    if (Array.isArray(deletedIds)) {
+      for (var d = 0; d < deletedIds.length; d += 1) {
+        var delId = typeof deletedIds[d] === "string" ? deletedIds[d].trim() : "";
+        if (delId) {
+          deletedMap[delId] = true;
+        }
+      }
+    }
+
+    var localList = Array.isArray(localApps) ? localApps : [];
+    var localMap = Object.create(null);
+    var merged = [];
+
+    for (var i = 0; i < localList.length; i += 1) {
+      var sanitizedLocal = sanitizeAppRecord(localList[i]);
+      if (sanitizedLocal.id) {
+        localMap[sanitizedLocal.id] = true;
+      }
+      merged.push(sanitizedLocal);
+    }
+
+    var remoteList = Array.isArray(remoteApps) ? remoteApps : [];
+    for (var j = 0; j < remoteList.length; j += 1) {
+      var sanitizedRemote = sanitizeAppRecord(remoteList[j]);
+      if (!sanitizedRemote.id || localMap[sanitizedRemote.id] || deletedMap[sanitizedRemote.id]) {
+        continue;
+      }
+      localMap[sanitizedRemote.id] = true;
+      merged.push(sanitizedRemote);
+    }
+
+    return merged;
+  }
+
   /**
    * Parses supported image data URLs (PNG/JPEG/WebP/GIF/SVG) into { mimeType, ext, base64 }.
    */
@@ -348,7 +529,7 @@
     return new Error("GitHub API 요청이 실패했습니다 (" + status + ")." + suffix);
   }
 
-  async function fetchExistingFileSha(fetchFn, owner, repo, branch, token, filePath) {
+  async function fetchExistingFileInfo(fetchFn, owner, repo, branch, token, filePath) {
     var url = buildContentsUrl(owner, repo, filePath, branch);
     var res = await fetchFn(url, {
       method: "GET",
@@ -359,25 +540,32 @@
       throw new Error("GitHub API로부터 응답을 받지 못했습니다.");
     }
     if (res.status === 404) {
-      return null;
+      return { sha: null, contentText: "" };
     }
     if (!res.ok) {
       throw await createGitHubHttpError(res);
     }
 
     var data = typeof res.json === "function" ? await res.json() : null;
-    return data && typeof data.sha === "string" ? data.sha : null;
+    var sha = data && typeof data.sha === "string" ? data.sha : null;
+    var contentText = "";
+    if (data && typeof data.content === "string" && (!data.encoding || data.encoding === "base64")) {
+      contentText = base64ToUtf8(data.content);
+    }
+    return { sha: sha, contentText: contentText };
   }
 
   async function putRepoFile(fetchFn, params) {
-    var sha = await fetchExistingFileSha(
-      fetchFn,
-      params.owner,
-      params.repo,
-      params.branch,
-      params.token,
-      params.filePath
-    );
+    var sha = typeof params.knownSha === "string" || params.knownSha === null
+      ? params.knownSha
+      : (await fetchExistingFileInfo(
+        fetchFn,
+        params.owner,
+        params.repo,
+        params.branch,
+        params.token,
+        params.filePath
+      )).sha;
 
     var payload = {
       message: params.message,
@@ -467,7 +655,18 @@
       updatedApps.push(sanitized);
     }
 
-    var serializedAppsJs = serializeAppsJs(opts.config, updatedApps);
+    var remoteAppsFile = await fetchExistingFileInfo(
+      fetchFn,
+      owner,
+      repo,
+      branch,
+      token,
+      "data/apps.js"
+    );
+    var remoteApps = parseAppsFromAppsJs(remoteAppsFile.contentText);
+    var finalApps = mergeAppsWithRemote(remoteApps, updatedApps, opts.deletedIds);
+
+    var serializedAppsJs = serializeAppsJs(opts.config, finalApps);
     var putResult = await putRepoFile(fetchFn, {
       owner: owner,
       repo: repo,
@@ -475,7 +674,8 @@
       token: token,
       filePath: "data/apps.js",
       message: "chore: update portfolio apps data",
-      contentBase64: utf8ToBase64(serializedAppsJs)
+      contentBase64: utf8ToBase64(serializedAppsJs),
+      knownSha: remoteAppsFile.sha
     });
 
     var commitSha = putResult && putResult.commit && typeof putResult.commit.sha === "string"
@@ -489,12 +689,14 @@
       ok: true,
       commitSha: commitSha,
       htmlUrl: htmlUrl,
-      updatedApps: updatedApps
+      updatedApps: finalApps
     };
   }
 
   global.PortfolioGitHubSync = {
     utf8ToBase64: utf8ToBase64,
+    base64ToUtf8: base64ToUtf8,
+    parseAppsFromAppsJs: parseAppsFromAppsJs,
     parseDataUrlBase64: parseDataUrlBase64,
     sanitizeAppRecord: sanitizeAppRecord,
     serializeAppsJs: serializeAppsJs,
