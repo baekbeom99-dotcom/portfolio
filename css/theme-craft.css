@@ -1,0 +1,401 @@
+/*
+ * 사부작스쿨(Sabujaak School) 크래프트 아틀리에 테스트 테마
+ * 기존 css/styles.css 위에 따뜻한 크림 종이 · 우드 · 테라코타 · 세이지 그린 팔레트를 덮어씌웁니다.
+ */
+
+:root {
+  color-scheme: light;
+  --bg: #f8f3e8;
+  --surface: #fffdf8;
+  --surface-muted: #efe7d6;
+  --surface-tint: #fbf1e3;
+  --ink: #3a271b;
+  --ink-secondary: #5c4637;
+  --ink-muted: #7b6454;
+  --border: #e0d3be;
+  --border-strong: #c5b195;
+  --accent: #c65522;
+  --accent-hover: #ad4618;
+  --accent-soft: #fbece3;
+  --accent-ink: #ffffff;
+  --ochre: #d99626;
+  --ochre-soft: #fcf1d8;
+  --ochre-ink: #84560d;
+  --sky: #3b7d94;
+  --sky-soft: #e7f3f7;
+  --sky-ink: #2c6478;
+  --emerald-soft: #eaf2e4;
+  --emerald-ink: #436835;
+  --shadow-sm: 0 3px 0 rgba(197, 177, 149, 0.42), 0 6px 14px -6px rgba(58, 39, 27, 0.08);
+  --shadow-md: 0 5px 0 rgba(197, 177, 149, 0.55), 0 16px 28px -8px rgba(58, 39, 27, 0.14);
+  --shadow-lg: 0 24px 48px -12px rgba(58, 39, 27, 0.26), 0 8px 18px -6px rgba(58, 39, 27, 0.14);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --font-display: "Jua", "Pretendard Variable", "Noto Sans KR", system-ui, sans-serif;
+  --font-sans: "Pretendard Variable", "Pretendard", "Gowun Dodum", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(rgba(139, 108, 82, 0.12) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(222, 107, 50, 0.1), transparent 44%),
+    radial-gradient(circle at 88% 8%, rgba(92, 125, 76, 0.09), transparent 40%);
+  background-size: 22px 22px, 100% 100%, 100% 100%;
+  color: var(--ink);
+}
+
+/* Preview Notice Bar */
+.craft-preview-notice {
+  background: #3a271b;
+  color: #fdf6ea;
+  border-bottom: 2px solid #c65522;
+  font-size: 0.85rem;
+}
+
+.craft-preview-notice-inner {
+  width: min(var(--container-max), 100% - 2rem);
+  margin: 0 auto;
+  padding: 0.55rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.craft-preview-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.craft-preview-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: #d99626;
+  color: #2c1d13;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.craft-preview-back {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.8rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 248, 0.14);
+  border: 1px solid rgba(255, 253, 248, 0.28);
+  color: #fffdf8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.craft-preview-back:hover {
+  background: #c65522;
+  border-color: #c65522;
+}
+
+/* Header / Hero */
+.site-header {
+  border-bottom: 2px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.94) 0%, rgba(248, 243, 232, 0.88) 100%);
+}
+
+.hero-inner {
+  padding: 2rem 0 1.9rem;
+  align-items: center;
+}
+
+.hero-meta {
+  margin-bottom: 0.55rem;
+}
+
+.hero-owner {
+  gap: 0.42rem;
+  padding: 0.28rem 0.85rem;
+  background: var(--ochre-soft);
+  border: 1.5px solid #e6c687;
+  color: var(--ochre-ink);
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 400;
+  box-shadow: 0 2px 0 rgba(217, 150, 38, 0.2);
+}
+
+.hero-owner::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #de6b32;
+  flex-shrink: 0;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.hero-title.is-craft-logo {
+  display: inline-block;
+  line-height: 0;
+}
+
+.craft-hero-logo {
+  width: min(380px, 100%);
+  height: auto;
+}
+
+.hero-subtitle {
+  margin-top: 0.65rem;
+  color: var(--ink-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.btn-admin-entry {
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  box-shadow: 0 2px 0 rgba(197, 177, 149, 0.45);
+}
+
+.btn-admin-entry:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.stat-badge {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 3px 0 rgba(197, 177, 149, 0.42);
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.18rem;
+}
+
+/* Controls */
+.controls-bar {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.search-input {
+  border: 1.5px solid var(--border);
+  background: #f6efe2;
+  color: var(--ink);
+}
+
+.search-input:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(198, 85, 34, 0.16);
+}
+
+.launch-filter-group {
+  background: var(--surface-muted);
+  border: 1.5px solid var(--border);
+}
+
+.launch-filter-btn.is-active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 2px 0 rgba(197, 177, 149, 0.45);
+}
+
+.controls-bottom {
+  border-top: 1.5px dashed var(--border);
+}
+
+.filter-chip {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-secondary);
+}
+
+.filter-chip:hover {
+  border-color: var(--border-strong);
+  background: var(--ochre-soft);
+  color: var(--ink);
+}
+
+.filter-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 2px 0 #9b3d14;
+}
+
+/* Cards */
+.app-card {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-card:hover {
+  transform: translateY(-4px);
+  border-color: #d48862;
+  box-shadow: var(--shadow-md);
+}
+
+.app-card.is-featured {
+  border-color: #d99626;
+  box-shadow: 0 4px 0 rgba(217, 150, 38, 0.35), 0 12px 24px -8px rgba(217, 150, 38, 0.18);
+}
+
+.app-card.is-featured:hover {
+  border-color: var(--accent);
+}
+
+.app-card-thumb {
+  background: #3a271b;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.app-card-thumb .launch-badge {
+  box-shadow: 0 2px 8px rgba(58, 39, 27, 0.18);
+}
+
+.launch-badge.is-embedded {
+  background: rgba(234, 242, 228, 0.96);
+  color: var(--emerald-ink);
+  border: 1px solid rgba(67, 104, 53, 0.28);
+}
+
+.launch-badge.is-external {
+  background: rgba(231, 243, 247, 0.96);
+  color: var(--sky-ink);
+  border: 1px solid rgba(44, 100, 120, 0.26);
+}
+
+.app-card-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.24rem;
+  letter-spacing: 0;
+  line-height: 1.32;
+}
+
+.audience-label {
+  background: var(--ochre-soft);
+  color: var(--ochre-ink);
+  border: 1px solid rgba(217, 150, 38, 0.24);
+}
+
+.tag-chip {
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+}
+
+.tag-chip.is-overflow {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.btn-reset-filters {
+  background: var(--ink);
+  color: #fffdf8;
+}
+
+.btn-reset-filters:hover {
+  background: var(--accent);
+}
+
+/* Footer */
+.site-footer {
+  border-top: 2px solid var(--border);
+  background: var(--surface);
+}
+
+/* Modals & Viewer */
+.modal-backdrop {
+  background: rgba(58, 39, 27, 0.56);
+}
+
+.modal-dialog {
+  background: var(--surface);
+  border: 2px solid var(--border);
+}
+
+.modal-close {
+  background: rgba(58, 39, 27, 0.78);
+}
+
+.modal-close:hover {
+  background: #3a271b;
+}
+
+.modal-thumb-wrap {
+  background: #3a271b;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.modal-section {
+  background: #faf5eb;
+  border: 1.5px solid var(--border);
+}
+
+.modal-actions {
+  background: rgba(255, 253, 248, 0.96);
+  border-top: 1.5px solid var(--border);
+}
+
+.btn-primary {
+  box-shadow: 0 3px 0 #9b3d14;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  border: 1.5px solid var(--border-strong);
+}
+
+.viewer-overlay {
+  background: #2b1d14;
+}
+
+.viewer-toolbar {
+  background: #3a271b;
+  border-bottom: 1px solid rgba(255, 253, 248, 0.14);
+}
+
+.toast {
+  background: #3a271b;
+  color: #fffdf8;
+  border: 1px solid rgba(224, 211, 190, 0.25);
+}
+
+@media (max-width: 639px) {
+  .craft-hero-logo {
+    width: min(300px, 100%);
+  }
+
+  .hero-side {
+    width: 100%;
+    align-items: flex-start;
+  }
+}
