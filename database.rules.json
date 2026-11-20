@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "portfolio": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === 'zNS57lhTOXMCDrbBwhAV2US5i0w1'"
+    },
+    "stats": {
+      ".read": true,
+      "totalViews": {
+        ".write": "newData.isNumber() && (!data.exists() ? newData.val() === 1 : newData.val() === data.val() + 1)"
+      },
+      "appViews": {
+        "$appId": {
+          ".write": "newData.isNumber() && (!data.exists() ? newData.val() === 1 : newData.val() === data.val() + 1)"
+        }
+      }
+    }
+  }
+}

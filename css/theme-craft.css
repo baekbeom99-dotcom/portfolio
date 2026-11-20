@@ -130,6 +130,15 @@ body {
   font-size: 1.18rem;
 }
 
+.stat-badge.is-views {
+  border-color: #e6c687;
+  background: var(--ochre-soft);
+}
+
+.stat-badge.is-views .stat-value {
+  color: var(--accent);
+}
+
 /* Controls */
 .controls-bar {
   background: var(--surface);
@@ -248,6 +257,19 @@ body {
 .tag-chip.is-overflow {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.app-card-views {
+  padding: 0.16rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+}
+
+.modal-views-badge {
+  background: var(--ochre-soft);
+  color: var(--ochre-ink);
+  border: 1px solid rgba(217, 150, 38, 0.24);
 }
 
 .btn-reset-filters {

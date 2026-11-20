@@ -55,6 +55,9 @@
       document.title = config.siteTitle.trim();
     }
 
+    var currentSiteViews = null;
+    var currentAppViews = null;
+
     function computeStats(appList) {
       var list = Array.isArray(appList) ? appList : [];
       var embeddedCount = 0;
@@ -73,11 +76,15 @@
           totalCount += 1;
         }
       }
-      return {
+      var stats = {
         totalCount: totalCount,
         embeddedCount: embeddedCount,
         externalCount: externalCount
       };
+      if (typeof currentSiteViews === "number" && isFinite(currentSiteViews) && currentSiteViews >= 0) {
+        stats.totalViews = currentSiteViews;
+      }
+      return stats;
     }
 
     var currentStats = computeStats(initialApps);
@@ -204,7 +211,9 @@
       draftBannerEl.hidden = false;
       var messageSpan = document.createElement("span");
       messageSpan.className = "draft-banner-text";
-      messageSpan.textContent = "로컬 미리보기 중 · 'GitHub에 게시'를 누르기 전까지는 이 브라우저에만 보입니다.";
+      messageSpan.textContent = global.PortfolioFirebase
+        ? "로컬 미리보기 중 · 'Firebase에 게시'를 누르기 전까지는 이 브라우저에만 보입니다."
+        : "로컬 미리보기 중 · 'GitHub에 게시'를 누르기 전까지는 이 브라우저에만 보입니다.";
 
       var resetBtn = document.createElement("button");
       resetBtn.type = "button";
@@ -307,6 +316,38 @@
       }
     }
 
+    var lastTrackedAppViewId = null;
+
+    function trackAppView(appId) {
+      if (
+        !appId ||
+        lastTrackedAppViewId === appId ||
+        !global.PortfolioFirebase ||
+        typeof global.PortfolioFirebase.incrementAppView !== "function"
+      ) {
+        return;
+      }
+      var loc = global.location;
+      if (!loc || (loc.protocol !== "http:" && loc.protocol !== "https:")) {
+        return;
+      }
+      lastTrackedAppViewId = appId;
+      global.PortfolioFirebase.incrementAppView(appId).then(function (nextCount) {
+        if (typeof nextCount !== "number") {
+          return;
+        }
+        if (!currentAppViews) {
+          currentAppViews = Object.create(null);
+        }
+        currentAppViews[appId] = nextCount;
+        lastFilterKey = null;
+        if (store.getState().selectedAppId === appId) {
+          lastModalAppId = undefined;
+        }
+        renderFromState(store.getState());
+      });
+    }
+
     function renderFromState(state) {
       if (searchInput && searchInput.value !== state.searchQuery) {
         searchInput.value = state.searchQuery;
@@ -333,6 +374,7 @@
 
         var filteredApps = store.getFilteredApps();
         global.PortfolioRender.renderAppGrid(appGridEl, filteredApps, state, {
+          appViews: currentAppViews,
           onSelectApp: function (appId) {
             if (document.activeElement && typeof document.activeElement.focus === "function") {
               lastFocusedEl = document.activeElement;
@@ -358,9 +400,22 @@
 
       var selectedApp = store.getSelectedApp();
 
+      if (selectedApp && selectedApp.id) {
+        trackAppView(selectedApp.id);
+      } else {
+        lastTrackedAppViewId = null;
+      }
+
       if (state.selectedAppId !== lastModalAppId) {
         lastModalAppId = state.selectedAppId;
+        var modalViewCount =
+          selectedApp &&
+          currentAppViews &&
+          typeof currentAppViews[selectedApp.id] === "number"
+            ? currentAppViews[selectedApp.id]
+            : null;
         global.PortfolioRender.renderDetailModal(detailModalEl, selectedApp, {
+          viewCount: modalViewCount,
           onCloseDetail: function () {
             store.closeDetail();
           },
@@ -508,6 +563,8 @@
 
     store.syncFromHash(global.location ? global.location.hash : "");
 
+    var firebaseCatalogSynced = false;
+
     function refreshDeployedDataScript() {
       var loc = global.location;
       if (!loc || (loc.protocol !== "http:" && loc.protocol !== "https:")) {
@@ -522,6 +579,9 @@
       scriptEl.onload = function () {
         if (scriptEl.parentNode) {
           scriptEl.parentNode.removeChild(scriptEl);
+        }
+        if (firebaseCatalogSynced) {
+          return;
         }
         var freshApps = Array.isArray(global.PORTFOLIO_APPS) ? global.PORTFOLIO_APPS : [];
         var hasDraft = Boolean(
@@ -565,7 +625,79 @@
       head.appendChild(scriptEl);
     }
 
+    function syncFromFirebase() {
+      var loc = global.location;
+      if (!global.PortfolioFirebase || !loc || (loc.protocol !== "http:" && loc.protocol !== "https:")) {
+        return;
+      }
+
+      if (typeof global.PortfolioFirebase.loadCatalog === "function") {
+        global.PortfolioFirebase.loadCatalog().then(function (remoteCatalog) {
+          if (!remoteCatalog || !Array.isArray(remoteCatalog.apps) || remoteCatalog.apps.length === 0) {
+            return;
+          }
+          firebaseCatalogSynced = true;
+          if (remoteCatalog.config && typeof remoteCatalog.config === "object") {
+            config = Object.assign({}, config, remoteCatalog.config);
+            global.PORTFOLIO_CONFIG = config;
+            if (typeof config.siteTitle === "string" && config.siteTitle.trim()) {
+              document.title = config.siteTitle.trim();
+            }
+          }
+          global.PORTFOLIO_APPS = remoteCatalog.apps.slice();
+
+          var hasDraft = Boolean(
+            global.PortfolioAdmin &&
+            typeof global.PortfolioAdmin.hasDraftApps === "function" &&
+            global.PortfolioAdmin.hasDraftApps()
+          );
+          if (hasDraft) {
+            return;
+          }
+
+          if (
+            global.PortfolioAdmin &&
+            typeof global.PortfolioAdmin.clearPublishedCache === "function"
+          ) {
+            global.PortfolioAdmin.clearPublishedCache();
+          }
+
+          try {
+            if (JSON.stringify(remoteCatalog.apps) !== JSON.stringify(store.getState().apps)) {
+              handleAppsChanged(remoteCatalog.apps);
+            }
+          } catch (_err) {
+            handleAppsChanged(remoteCatalog.apps);
+          }
+        }).catch(function () {
+          // Fallback silently to data/apps.js when Firebase is unreachable.
+        });
+      }
+
+      if (
+        typeof global.PortfolioFirebase.loadStats === "function" &&
+        typeof global.PortfolioFirebase.incrementSiteView === "function"
+      ) {
+        Promise.all([
+          global.PortfolioFirebase.loadStats(),
+          global.PortfolioFirebase.incrementSiteView()
+        ]).then(function (results) {
+          var loadedStats = results[0] || { totalViews: 0, appViews: {} };
+          var nextTotal = results[1];
+          currentAppViews = loadedStats.appViews || Object.create(null);
+          currentSiteViews = typeof nextTotal === "number" ? nextTotal : loadedStats.totalViews;
+          currentStats = computeStats(store.getState().apps);
+          renderSiteHeader();
+          lastFilterKey = null;
+          renderFromState(store.getState());
+        }).catch(function () {
+          // Ignore stats failures on offline/restricted loads.
+        });
+      }
+    }
+
     refreshDeployedDataScript();
+    syncFromFirebase();
 
     return {
       store: store

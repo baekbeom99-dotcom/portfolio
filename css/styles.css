@@ -266,6 +266,10 @@ a {
   color: var(--sky-ink);
 }
 
+.stat-badge.is-views .stat-value {
+  color: var(--accent);
+}
+
 /* Main Layout */
 .portfolio-main {
   flex: 1 0 auto;
@@ -623,6 +627,39 @@ a {
 
 .audience-text {
   color: var(--ink-secondary);
+}
+
+.app-card-footer {
+  margin-top: auto;
+  padding-top: 0.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.app-card-footer .app-card-tags {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.app-card-views {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.modal-views-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.62rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .app-card-tags {
@@ -1533,6 +1570,21 @@ a {
   overflow: hidden;
   border: 1px solid var(--border-strong);
   background: #0f172a;
+}
+
+.admin-firebase-creds {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.admin-firebase-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.8rem;
 }
 
 .admin-github-details {

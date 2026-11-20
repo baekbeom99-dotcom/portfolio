@@ -392,12 +392,21 @@
     return listEl.children.length > 0 ? listEl : null;
   }
 
+  function formatCountText(value) {
+    var num = Math.max(0, Math.floor(Number(value) || 0));
+    try {
+      return num.toLocaleString("ko-KR");
+    } catch (_err) {
+      return String(num);
+    }
+  }
+
   function renderStatBadge(label, count, modifierClass) {
     return el("span", {
       className: "stat-badge " + modifierClass,
       children: [
         el("span", { className: "stat-label", text: label }),
-        el("strong", { className: "stat-value", text: String(count) })
+        el("strong", { className: "stat-value", text: formatCountText(count) })
       ]
     });
   }
@@ -502,13 +511,18 @@
       );
     }
 
+    var statsChildren = [
+      renderStatBadge("전체 앱", totalCount, "is-total"),
+      renderStatBadge("직접 탑재", embeddedCount, "is-embedded"),
+      renderStatBadge("웹 링크", externalCount, "is-external")
+    ];
+    if (typeof safeStats.totalViews === "number" && isFinite(safeStats.totalViews) && safeStats.totalViews >= 0) {
+      statsChildren.push(renderStatBadge("총 조회수", safeStats.totalViews, "is-views"));
+    }
+
     var statsRow = el("div", {
       className: "hero-stats",
-      children: [
-        renderStatBadge("전체 앱", totalCount, "is-total"),
-        renderStatBadge("직접 탑재", embeddedCount, "is-embedded"),
-        renderStatBadge("웹 링크", externalCount, "is-external")
-      ]
+      children: statsChildren
     });
 
     var sideCol = el("div", {
@@ -572,7 +586,7 @@
     }
   }
 
-  function renderAppCard(app, onSelectApp) {
+  function renderAppCard(app, onSelectApp, viewCount) {
     var card = el("article", {
       className: app.featured ? "app-card is-featured" : "app-card",
       attrs: { "data-app-id": app.id || "" }
@@ -603,7 +617,21 @@
     }
 
     var tagRow = renderTagChips(app.tags, "app-card-tags", 3);
-    if (tagRow) {
+    var hasViewCount = typeof viewCount === "number" && isFinite(viewCount) && viewCount >= 0;
+    if (hasViewCount) {
+      var footerRow = el("div", { className: "app-card-footer" });
+      if (tagRow) {
+        footerRow.appendChild(tagRow);
+      }
+      footerRow.appendChild(
+        el("span", {
+          className: "app-card-views",
+          text: "조회 " + formatCountText(viewCount),
+          attrs: { "aria-label": "조회수 " + formatCountText(viewCount) + "회" }
+        })
+      );
+      body.appendChild(footerRow);
+    } else if (tagRow) {
       body.appendChild(tagRow);
     }
 
@@ -687,9 +715,17 @@
       return;
     }
 
+    var appViews = callbacks && callbacks.appViews && typeof callbacks.appViews === "object"
+      ? callbacks.appViews
+      : null;
+
     for (var i = 0; i < safeApps.length; i += 1) {
-      if (safeApps[i]) {
-        gridEl.appendChild(renderAppCard(safeApps[i], onSelectApp));
+      var item = safeApps[i];
+      if (item) {
+        var viewCount = appViews && item.id && typeof appViews[item.id] === "number"
+          ? appViews[item.id]
+          : null;
+        gridEl.appendChild(renderAppCard(item, onSelectApp, viewCount));
       }
     }
   }
@@ -783,14 +819,29 @@
 
     var thumbWrap = buildThumbnailFrame("modal-thumb-wrap", "modal-thumb-img", app, false);
 
+    var headerMetaChildren = [
+      el("span", {
+        className: getLaunchBadgeClass(app.launchType),
+        text: getLaunchTypeLabel(app.launchType)
+      })
+    ];
+    if (
+      callbacks &&
+      typeof callbacks.viewCount === "number" &&
+      isFinite(callbacks.viewCount) &&
+      callbacks.viewCount >= 0
+    ) {
+      headerMetaChildren.push(
+        el("span", {
+          className: "modal-views-badge",
+          text: "조회 " + formatCountText(callbacks.viewCount)
+        })
+      );
+    }
+
     var headerMeta = el("div", {
       className: "modal-header-meta",
-      children: [
-        el("span", {
-          className: getLaunchBadgeClass(app.launchType),
-          text: getLaunchTypeLabel(app.launchType)
-        })
-      ]
+      children: headerMetaChildren
     });
 
     var titleEl = el("h2", {

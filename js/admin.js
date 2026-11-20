@@ -1203,7 +1203,9 @@
         children: [
           el("summary", {
             className: "admin-github-summary",
-            text: "GitHub 자동 게시 설정 (토큰·저장소)"
+            text: global.PortfolioFirebase
+              ? "고급: GitHub 저장소 동기화 (백업용)"
+              : "GitHub 자동 게시 설정 (토큰·저장소)"
           }),
           el("div", {
             className: "admin-github-fields",
@@ -1228,9 +1230,150 @@
         ]
       });
 
+      var hasFirebaseSync = Boolean(
+        global.PortfolioFirebase &&
+        typeof global.PortfolioFirebase.publishCatalogToFirebase === "function"
+      );
+      var fbEmailInput = null;
+      var fbPwInput = null;
+      var fbLoginBtn = null;
+      var fbLogoutBtn = null;
+      var fbStatusEl = null;
+      var fbCredsRow = null;
+      var fbSectionEl = null;
+
+      function refreshFirebaseAuthUi() {
+        if (!hasFirebaseSync || !fbStatusEl) {
+          return;
+        }
+        var stored = typeof global.PortfolioFirebase.getStoredAuth === "function"
+          ? global.PortfolioFirebase.getStoredAuth()
+          : null;
+        if (stored && stored.email) {
+          fbStatusEl.textContent = "Firebase 연결됨 (" + stored.email + ") · 토큰 없이 바로 게시할 수 있습니다.";
+          fbStatusEl.className = "admin-github-status is-ok";
+          if (fbCredsRow) {
+            fbCredsRow.hidden = true;
+          }
+          if (fbLogoutBtn) {
+            fbLogoutBtn.hidden = false;
+          }
+        } else {
+          if (!fbStatusEl.textContent || fbStatusEl.className.indexOf("is-error") === -1) {
+            fbStatusEl.textContent = "최초 1회 Firebase 관리자 이메일과 비밀번호로 로그인하면 이후 브라우저에 유지됩니다.";
+            fbStatusEl.className = "admin-github-status";
+          }
+          if (fbCredsRow) {
+            fbCredsRow.hidden = false;
+          }
+          if (fbLogoutBtn) {
+            fbLogoutBtn.hidden = true;
+          }
+        }
+      }
+
+      if (hasFirebaseSync) {
+        fbEmailInput = el("input", {
+          className: "admin-input",
+          props: { value: "admin@sabujaak.school" },
+          attrs: {
+            id: "admin-firebase-email",
+            type: "email",
+            autocomplete: "username",
+            placeholder: "admin@sabujaak.school"
+          }
+        });
+        fbPwInput = el("input", {
+          className: "admin-input",
+          attrs: {
+            id: "admin-firebase-password",
+            type: "password",
+            autocomplete: "current-password",
+            placeholder: "Firebase 관리자 비밀번호"
+          }
+        });
+        fbStatusEl = el("p", {
+          className: "admin-github-status",
+          attrs: { id: "admin-firebase-status", role: "status" }
+        });
+        fbLoginBtn = el("button", {
+          className: "btn-secondary",
+          text: "Firebase 로그인",
+          props: { type: "button" },
+          attrs: { id: "admin-firebase-login-btn" },
+          on: {
+            click: async function () {
+              fbLoginBtn.disabled = true;
+              fbStatusEl.textContent = "Firebase 로그인 중...";
+              fbStatusEl.className = "admin-github-status is-loading";
+              try {
+                await global.PortfolioFirebase.signInWithPassword(fbEmailInput.value, fbPwInput.value);
+                fbPwInput.value = "";
+                refreshFirebaseAuthUi();
+                onToast("Firebase에 로그인되었습니다.");
+              } catch (err) {
+                var msg = err && err.message ? err.message : "Firebase 로그인에 실패했습니다.";
+                fbStatusEl.textContent = msg;
+                fbStatusEl.className = "admin-github-status is-error";
+                onToast(msg);
+              } finally {
+                fbLoginBtn.disabled = false;
+              }
+            }
+          }
+        });
+        fbLogoutBtn = el("button", {
+          className: "btn-secondary",
+          text: "Firebase 로그아웃",
+          props: { type: "button", hidden: true },
+          attrs: { id: "admin-firebase-logout-btn" },
+          on: {
+            click: function () {
+              if (typeof global.PortfolioFirebase.signOut === "function") {
+                global.PortfolioFirebase.signOut();
+              }
+              fbStatusEl.textContent = "";
+              fbStatusEl.className = "admin-github-status";
+              refreshFirebaseAuthUi();
+              onToast("Firebase에서 로그아웃되었습니다.");
+            }
+          }
+        });
+
+        fbCredsRow = el("div", {
+          className: "admin-firebase-creds",
+          children: [
+            el("div", {
+              className: "admin-row-2",
+              children: [
+                createFieldGroup("관리자 이메일", fbEmailInput, "admin-firebase-email"),
+                createFieldGroup("비밀번호", fbPwInput, "admin-firebase-password")
+              ]
+            }),
+            fbLoginBtn
+          ]
+        });
+
+        fbSectionEl = el("section", {
+          className: "admin-form-section admin-firebase-section",
+          children: [
+            el("h3", { className: "admin-section-title", text: "4. Firebase 즉시 게시 (PAT 불필요)" }),
+            fbCredsRow,
+            el("div", {
+              className: "admin-firebase-status-row",
+              children: [fbStatusEl, fbLogoutBtn]
+            })
+          ]
+        });
+
+        refreshFirebaseAuthUi();
+      }
+
       function updateThumbFileNote() {
         if (pendingThumbDataUrl) {
-          thumbFileNoteEl.textContent = "업로드 이미지 선택됨 (게시 시 assets/thumbnails/에 자동 저장)";
+          thumbFileNoteEl.textContent = hasFirebaseSync
+            ? "업로드 이미지 선택됨 (게시 시 Firebase에 바로 저장)"
+            : "업로드 이미지 선택됨 (게시 시 assets/thumbnails/에 자동 저장)";
         } else {
           thumbFileNoteEl.textContent = "";
         }
@@ -1526,6 +1669,52 @@
 
       thumbFitSelect.addEventListener("change", updateThumbPreview);
 
+      function compressRasterDataUrlIfNeeded(dataUrl, callback) {
+        if (
+          !hasFirebaseSync ||
+          typeof dataUrl !== "string" ||
+          dataUrl.length <= 150000 ||
+          dataUrl.indexOf("data:image/svg+xml") === 0 ||
+          typeof global.Image !== "function"
+        ) {
+          callback(dataUrl);
+          return;
+        }
+        var img = new global.Image();
+        img.onload = function () {
+          try {
+            var maxW = 800;
+            var maxH = 450;
+            var w = img.naturalWidth || img.width || maxW;
+            var h = img.naturalHeight || img.height || maxH;
+            var ratio = Math.min(1, maxW / w, maxH / h);
+            var targetW = Math.max(1, Math.round(w * ratio));
+            var targetH = Math.max(1, Math.round(h * ratio));
+            var canvas = document.createElement("canvas");
+            if (!canvas || typeof canvas.getContext !== "function") {
+              callback(dataUrl);
+              return;
+            }
+            canvas.width = targetW;
+            canvas.height = targetH;
+            var ctx = canvas.getContext("2d");
+            if (!ctx) {
+              callback(dataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+            var compressed = canvas.toDataURL("image/jpeg", 0.82);
+            callback(compressed && compressed.length < dataUrl.length ? compressed : dataUrl);
+          } catch (_err) {
+            callback(dataUrl);
+          }
+        };
+        img.onerror = function () {
+          callback(dataUrl);
+        };
+        img.src = dataUrl;
+      }
+
       thumbFileInput.addEventListener("change", function () {
         var file = thumbFileInput.files && thumbFileInput.files[0];
         if (!file) {
@@ -1551,10 +1740,12 @@
             return;
           }
           formErrorEl.textContent = "";
-          pendingThumbDataUrl = result;
-          thumbUrlInput.value = "";
-          updateThumbFileNote();
-          updateThumbPreview();
+          compressRasterDataUrlIfNeeded(result, function (finalDataUrl) {
+            pendingThumbDataUrl = finalDataUrl;
+            thumbUrlInput.value = "";
+            updateThumbFileNote();
+            updateThumbPreview();
+          });
         };
         reader.onerror = function () {
           formErrorEl.textContent = "이미지 파일을 읽는 중 오류가 발생했습니다.";
@@ -1818,8 +2009,90 @@
       }
 
       // Footer Buttons
+      function preparePublishPayload(statusEl) {
+        var appsToPublish = Array.isArray(getApps()) ? getApps().slice() : [];
+        var nextEditingId = editingAppId;
+        var hasFormSubmission = hasAnyFormInput();
+        var validated = null;
+
+        if (hasFormSubmission) {
+          validated = buildValidatedAppFromForm(appsToPublish);
+          if (!validated) {
+            var validationMsg = formErrorEl.textContent || "입력 항목을 확인해 주세요.";
+            if (statusEl) {
+              statusEl.textContent = validationMsg;
+              statusEl.className = "admin-github-status is-error";
+            }
+            onToast(validationMsg);
+            return null;
+          }
+          appsToPublish = upsertAppRecord(appsToPublish, validated);
+          nextEditingId = validated.id;
+        }
+
+        var pendingThumbnails = Object.create(null);
+        for (var i = 0; i < appsToPublish.length; i += 1) {
+          var item = appsToPublish[i];
+          if (!item || !item.id) {
+            continue;
+          }
+          if (item._pendingThumbDataUrl) {
+            pendingThumbnails[item.id] = item._pendingThumbDataUrl;
+          } else if (isDataImageUrl(item.thumbnail)) {
+            pendingThumbnails[item.id] = item.thumbnail;
+          }
+        }
+
+        var pendingDeletedIds = loadDeletedIds();
+        if (hasFormSubmission && validated) {
+          if (editingAppId && editingAppId !== validated.id && pendingDeletedIds.indexOf(editingAppId) === -1) {
+            pendingDeletedIds.push(editingAppId);
+          }
+          var filteredDeleted = [];
+          for (var d = 0; d < pendingDeletedIds.length; d += 1) {
+            if (pendingDeletedIds[d] !== validated.id) {
+              filteredDeleted.push(pendingDeletedIds[d]);
+            }
+          }
+          pendingDeletedIds = filteredDeleted;
+        }
+
+        return {
+          appsToPublish: appsToPublish,
+          pendingThumbnails: pendingThumbnails,
+          pendingDeletedIds: pendingDeletedIds,
+          hasFormSubmission: hasFormSubmission,
+          nextEditingId: nextEditingId
+        };
+      }
+
+      function applyPublishedResult(publishedApps, hasFormSubmission, nextEditingId) {
+        if (hasFormSubmission) {
+          editingAppId = nextEditingId;
+          idManuallyEdited = true;
+        }
+
+        global.PORTFOLIO_APPS = publishedApps.slice();
+        savePublishedCache(publishedApps);
+        clearDraftApps();
+        clearDeletedIds();
+        onAppsChanged(publishedApps);
+
+        if (editingAppId) {
+          for (var j = 0; j < publishedApps.length; j += 1) {
+            if (publishedApps[j] && publishedApps[j].id === editingAppId) {
+              loadAppIntoForm(publishedApps[j]);
+              break;
+            }
+          }
+        } else {
+          renderRegisteredAppsList();
+          renderTagSuggestionChips();
+        }
+      }
+
       var saveDraftBtn = el("button", {
-        className: "btn-primary",
+        className: hasFirebaseSync ? "btn-secondary" : "btn-primary",
         text: "로컬 미리보기에 저장",
         props: { type: "button" },
         attrs: { id: "admin-save-draft-btn" },
@@ -1850,6 +2123,70 @@
         }
       });
 
+      var firebasePublishBtn = hasFirebaseSync
+        ? el("button", {
+            className: "btn-primary admin-firebase-publish-btn",
+            text: "Firebase에 게시",
+            props: { type: "button" },
+            attrs: { id: "admin-firebase-publish-btn" },
+            on: {
+              click: async function () {
+                var payload = preparePublishPayload(fbStatusEl);
+                if (!payload) {
+                  return;
+                }
+
+                var myPublishEpoch = ++publishEpoch;
+                firebasePublishBtn.disabled = true;
+                fbStatusEl.textContent = "Firebase에 저장·배포하는 중...";
+                fbStatusEl.className = "admin-github-status is-loading";
+
+                try {
+                  var result = await global.PortfolioFirebase.publishCatalogToFirebase({
+                    config: getConfig(),
+                    apps: payload.appsToPublish,
+                    deletedIds: payload.pendingDeletedIds,
+                    email: fbEmailInput ? fbEmailInput.value : "",
+                    password: fbPwInput ? fbPwInput.value : ""
+                  });
+
+                  if (myPublishEpoch !== publishEpoch || !isOpen() || !isUnlocked()) {
+                    return;
+                  }
+
+                  if (fbPwInput) {
+                    fbPwInput.value = "";
+                  }
+
+                  var publishedApps = Array.isArray(result.updatedApps)
+                    ? result.updatedApps
+                    : payload.appsToPublish;
+                  applyPublishedResult(publishedApps, payload.hasFormSubmission, payload.nextEditingId);
+                  refreshFirebaseAuthUi();
+
+                  var successMsg = "Firebase에 즉시 게시되었습니다. 지금 바로 모든 방문자에게 반영됩니다.";
+                  fbStatusEl.textContent = successMsg;
+                  fbStatusEl.className = "admin-github-status is-ok";
+                  onToast(successMsg);
+                } catch (err) {
+                  if (myPublishEpoch !== publishEpoch || !isOpen() || !isUnlocked()) {
+                    return;
+                  }
+                  var errMsg = err && err.message ? err.message : "Firebase 게시 중 오류가 발생했습니다.";
+                  fbStatusEl.textContent = errMsg;
+                  fbStatusEl.className = "admin-github-status is-error";
+                  refreshFirebaseAuthUi();
+                  onToast(errMsg);
+                } finally {
+                  if (myPublishEpoch === publishEpoch) {
+                    firebasePublishBtn.disabled = false;
+                  }
+                }
+              }
+            }
+          })
+        : null;
+
       var publishBtn = el("button", {
         className: "btn-secondary admin-publish-btn",
         text: "GitHub에 게시",
@@ -1863,33 +2200,9 @@
             }
 
             persistGhInputs();
-            var appsToPublish = Array.isArray(getApps()) ? getApps().slice() : [];
-            var nextEditingId = editingAppId;
-            var hasFormSubmission = hasAnyFormInput();
-            if (hasFormSubmission) {
-              var validated = buildValidatedAppFromForm(appsToPublish);
-              if (!validated) {
-                var validationMsg = formErrorEl.textContent || "입력 항목을 확인해 주세요.";
-                ghStatusEl.textContent = validationMsg;
-                ghStatusEl.className = "admin-github-status is-error";
-                onToast(validationMsg);
-                return;
-              }
-              appsToPublish = upsertAppRecord(appsToPublish, validated);
-              nextEditingId = validated.id;
-            }
-
-            var pendingThumbnails = Object.create(null);
-            for (var i = 0; i < appsToPublish.length; i += 1) {
-              var item = appsToPublish[i];
-              if (!item || !item.id) {
-                continue;
-              }
-              if (item._pendingThumbDataUrl) {
-                pendingThumbnails[item.id] = item._pendingThumbDataUrl;
-              } else if (isDataImageUrl(item.thumbnail)) {
-                pendingThumbnails[item.id] = item.thumbnail;
-              }
+            var payload = preparePublishPayload(ghStatusEl);
+            if (!payload) {
+              return;
             }
 
             var myPublishEpoch = ++publishEpoch;
@@ -1898,20 +2211,6 @@
             ghStatusEl.className = "admin-github-status is-loading";
             githubDetailsEl.open = true;
 
-            var pendingDeletedIds = loadDeletedIds();
-            if (hasFormSubmission && validated) {
-              if (editingAppId && editingAppId !== validated.id && pendingDeletedIds.indexOf(editingAppId) === -1) {
-                pendingDeletedIds.push(editingAppId);
-              }
-              var filteredDeleted = [];
-              for (var d = 0; d < pendingDeletedIds.length; d += 1) {
-                if (pendingDeletedIds[d] !== validated.id) {
-                  filteredDeleted.push(pendingDeletedIds[d]);
-                }
-              }
-              pendingDeletedIds = filteredDeleted;
-            }
-
             try {
               var result = await global.PortfolioGitHubSync.publishToGitHub({
                 owner: ghOwnerInput.value,
@@ -1919,38 +2218,19 @@
                 branch: ghBranchInput.value,
                 token: ghTokenInput.value,
                 config: getConfig(),
-                apps: appsToPublish,
-                pendingThumbnails: pendingThumbnails,
-                deletedIds: pendingDeletedIds
+                apps: payload.appsToPublish,
+                pendingThumbnails: payload.pendingThumbnails,
+                deletedIds: payload.pendingDeletedIds
               });
 
               if (myPublishEpoch !== publishEpoch || !isOpen() || !isUnlocked()) {
                 return;
               }
 
-              if (hasFormSubmission) {
-                editingAppId = nextEditingId;
-                idManuallyEdited = true;
-              }
-
-              var publishedApps = Array.isArray(result.updatedApps) ? result.updatedApps : appsToPublish;
-              global.PORTFOLIO_APPS = publishedApps.slice();
-              savePublishedCache(publishedApps);
-              clearDraftApps();
-              clearDeletedIds();
-              onAppsChanged(publishedApps);
-
-              if (editingAppId) {
-                for (var j = 0; j < publishedApps.length; j += 1) {
-                  if (publishedApps[j] && publishedApps[j].id === editingAppId) {
-                    loadAppIntoForm(publishedApps[j]);
-                    break;
-                  }
-                }
-              } else {
-                renderRegisteredAppsList();
-                renderTagSuggestionChips();
-              }
+              var publishedApps = Array.isArray(result.updatedApps)
+                ? result.updatedApps
+                : payload.appsToPublish;
+              applyPublishedResult(publishedApps, payload.hasFormSubmission, payload.nextEditingId);
 
               var successMsg = "GitHub에 게시되었습니다. (GitHub Pages 반영까지 약 30~40초 소요되며, 그 사이 새로고침해도 목록이 유지됩니다)";
               ghStatusEl.textContent = successMsg;
@@ -2135,6 +2415,7 @@
             ]
           }),
           formErrorEl,
+          fbSectionEl,
           githubDetailsEl
         ]
       });
@@ -2144,9 +2425,13 @@
         children: [appsSidebar, formArea]
       });
 
+      var footerButtons = firebasePublishBtn
+        ? [firebasePublishBtn, saveDraftBtn, publishBtn, downloadBtn, resetDraftBtn]
+        : [saveDraftBtn, publishBtn, downloadBtn, resetDraftBtn];
+
       var footerActions = el("footer", {
         className: "admin-footer-actions",
-        children: [saveDraftBtn, publishBtn, downloadBtn, resetDraftBtn]
+        children: footerButtons
       });
 
       var dialog = el("div", {
