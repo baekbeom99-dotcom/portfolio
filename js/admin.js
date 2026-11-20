@@ -664,6 +664,8 @@
     var modalEl = opts.modalEl || null;
     var getApps = typeof opts.getApps === "function" ? opts.getApps : function () { return []; };
     var getConfig = typeof opts.getConfig === "function" ? opts.getConfig : function () { return {}; };
+    var getStats = typeof opts.getStats === "function" ? opts.getStats : null;
+    var onStatsLoaded = typeof opts.onStatsLoaded === "function" ? opts.onStatsLoaded : function () {};
     var onAppsChanged = typeof opts.onAppsChanged === "function" ? opts.onAppsChanged : function () {};
     var onAuthChanged = typeof opts.onAuthChanged === "function" ? opts.onAuthChanged : function () {};
     var onToast = typeof opts.onToast === "function" ? opts.onToast : function () {};
@@ -704,6 +706,8 @@
     var currentInspectResult = null;
     var inspectEpoch = 0;
     var publishEpoch = 0;
+    var statsEpoch = 0;
+    var latestAdminStats = null;
 
     function isUnlocked() {
       return unlocked;
@@ -729,6 +733,7 @@
       }
       inspectEpoch += 1;
       publishEpoch += 1;
+      statsEpoch += 1;
       syncOverlayState(false);
       clearNode(modalEl);
       if (lastFocusedEl && typeof lastFocusedEl.focus === "function" && lastFocusedEl.isConnected !== false) {
@@ -741,6 +746,7 @@
       unlocked = false;
       writeSessionUnlocked(false);
       publishEpoch += 1;
+      statsEpoch += 1;
       if (isOpen()) {
         close();
       }
@@ -1369,6 +1375,269 @@
         refreshFirebaseAuthUi();
       }
 
+      var hasStatsCapability = Boolean(
+        hasFirebaseSync ||
+        getStats ||
+        (global.PortfolioFirebase && typeof global.PortfolioFirebase.loadStats === "function")
+      );
+      var statsSectionEl = null;
+      var statsTotalValueEl = null;
+      var statsAppSumValueEl = null;
+      var statsAppsCountEl = null;
+      var statsRowsEl = null;
+      var refreshStatsBtn = null;
+
+      function resolveAdminStats() {
+        var base = latestAdminStats || (getStats ? getStats() : null);
+        var totalViews = base && typeof base.totalViews === "number" && isFinite(base.totalViews)
+          ? Math.max(0, Math.floor(base.totalViews))
+          : 0;
+        var appViews = base && base.appViews && typeof base.appViews === "object"
+          ? base.appViews
+          : Object.create(null);
+        return {
+          totalViews: totalViews,
+          appViews: appViews
+        };
+      }
+
+      function formatAdminNumber(value) {
+        var num = Math.max(0, Math.floor(Number(value) || 0));
+        try {
+          return num.toLocaleString("ko-KR");
+        } catch (_err) {
+          return String(num);
+        }
+      }
+
+      function renderAdminStats() {
+        if (!hasStatsCapability || !statsSectionEl) {
+          return;
+        }
+        var currentStats = resolveAdminStats();
+        var rawApps = Array.isArray(getApps()) ? getApps() : [];
+        var orderedApps = global.PortfolioState && typeof global.PortfolioState.sortAppsNewestFirst === "function"
+          ? global.PortfolioState.sortAppsNewestFirst(rawApps, false)
+          : rawApps.slice().reverse();
+
+        var appMap = Object.create(null);
+        var rows = [];
+        var appSum = 0;
+
+        for (var i = 0; i < orderedApps.length; i += 1) {
+          var app = orderedApps[i];
+          if (!app || !app.id) {
+            continue;
+          }
+          appMap[app.id] = true;
+          var count = typeof currentStats.appViews[app.id] === "number" && isFinite(currentStats.appViews[app.id])
+            ? Math.max(0, Math.floor(currentStats.appViews[app.id]))
+            : 0;
+          appSum += count;
+          rows.push({
+            id: app.id,
+            title: app.title || app.id,
+            views: count,
+            order: i
+          });
+        }
+
+        var extraKeys = Object.keys(currentStats.appViews);
+        for (var j = 0; j < extraKeys.length; j += 1) {
+          var extraId = extraKeys[j];
+          if (appMap[extraId]) {
+            continue;
+          }
+          var extraCount = typeof currentStats.appViews[extraId] === "number" && isFinite(currentStats.appViews[extraId])
+            ? Math.max(0, Math.floor(currentStats.appViews[extraId]))
+            : 0;
+          if (extraCount > 0) {
+            appSum += extraCount;
+            rows.push({
+              id: extraId,
+              title: extraId + " (기록됨)",
+              views: extraCount,
+              order: rows.length
+            });
+          }
+        }
+
+        rows.sort(function (a, b) {
+          if (b.views !== a.views) {
+            return b.views - a.views;
+          }
+          return a.order - b.order;
+        });
+
+        var maxViews = rows.length > 0 && rows[0].views > 0 ? rows[0].views : 1;
+
+        if (statsTotalValueEl) {
+          statsTotalValueEl.textContent = formatAdminNumber(currentStats.totalViews) + "회";
+        }
+        if (statsAppSumValueEl) {
+          statsAppSumValueEl.textContent = formatAdminNumber(appSum) + "회";
+        }
+        if (statsAppsCountEl) {
+          statsAppsCountEl.textContent = formatAdminNumber(orderedApps.length) + "개";
+        }
+
+        if (statsRowsEl) {
+          clearNode(statsRowsEl);
+          if (rows.length === 0) {
+            statsRowsEl.appendChild(
+              el("p", {
+                className: "admin-stats-empty",
+                text: "등록된 사이트가 없습니다."
+              })
+            );
+            return;
+          }
+          for (var r = 0; r < rows.length; r += 1) {
+            var row = rows[r];
+            var pct = row.views > 0 ? Math.max(4, Math.round((row.views / maxViews) * 100)) : 0;
+            var barFill = el("span", { className: "admin-stat-bar-fill" });
+            barFill.style.width = pct + "%";
+
+            statsRowsEl.appendChild(
+              el("div", {
+                className: "admin-stat-row",
+                attrs: { "data-app-id": row.id },
+                children: [
+                  el("div", {
+                    className: "admin-stat-row-top",
+                    children: [
+                      el("span", {
+                        className: "admin-stat-rank",
+                        text: String(r + 1)
+                      }),
+                      el("span", {
+                        className: "admin-stat-name",
+                        text: row.title
+                      }),
+                      el("strong", {
+                        className: "admin-stat-count",
+                        text: formatAdminNumber(row.views) + "회"
+                      })
+                    ]
+                  }),
+                  el("div", {
+                    className: "admin-stat-bar-track",
+                    children: [barFill]
+                  })
+                ]
+              })
+            );
+          }
+        }
+      }
+
+      async function refreshAdminStats(showFeedback) {
+        if (!global.PortfolioFirebase || typeof global.PortfolioFirebase.loadStats !== "function") {
+          return;
+        }
+        var myEpoch = ++statsEpoch;
+        if (refreshStatsBtn) {
+          refreshStatsBtn.disabled = true;
+        }
+        try {
+          var freshStats = await global.PortfolioFirebase.loadStats();
+          if (myEpoch !== statsEpoch || !isOpen() || !isUnlocked()) {
+            return;
+          }
+          latestAdminStats = freshStats;
+          onStatsLoaded(freshStats);
+          renderRegisteredAppsList();
+          if (showFeedback) {
+            onToast("접속자 현황을 새로고침했습니다.");
+          }
+        } catch (_err) {
+          if (myEpoch === statsEpoch && showFeedback) {
+            onToast("접속자 현황을 불러오지 못했습니다.");
+          }
+        } finally {
+          if (myEpoch === statsEpoch && refreshStatsBtn) {
+            refreshStatsBtn.disabled = false;
+          }
+        }
+      }
+
+      if (hasStatsCapability) {
+        statsTotalValueEl = el("strong", {
+          className: "admin-stats-kpi-value",
+          attrs: { id: "admin-total-views" }
+        });
+        statsAppSumValueEl = el("strong", {
+          className: "admin-stats-kpi-value",
+          attrs: { id: "admin-total-app-views" }
+        });
+        statsAppsCountEl = el("strong", {
+          className: "admin-stats-kpi-value",
+          attrs: { id: "admin-total-apps-count" }
+        });
+        statsRowsEl = el("div", {
+          className: "admin-stats-list",
+          attrs: { id: "admin-app-stats-list" }
+        });
+        refreshStatsBtn = el("button", {
+          className: "btn-secondary admin-stats-refresh-btn",
+          text: "새로고침",
+          props: { type: "button" },
+          attrs: { id: "admin-refresh-stats-btn" },
+          on: {
+            click: function () {
+              refreshAdminStats(true);
+            }
+          }
+        });
+
+        statsSectionEl = el("section", {
+          className: "admin-form-section admin-stats-section",
+          attrs: { id: "admin-stats-section" },
+          children: [
+            el("div", {
+              className: "admin-stats-header",
+              children: [
+                el("h3", { className: "admin-section-title", text: "접속자 · 조회수 현황" }),
+                refreshStatsBtn
+              ]
+            }),
+            el("div", {
+              className: "admin-stats-kpi-grid",
+              children: [
+                el("div", {
+                  className: "admin-stats-kpi is-primary",
+                  children: [
+                    el("span", { className: "admin-stats-kpi-label", text: "전체 접속 수" }),
+                    statsTotalValueEl
+                  ]
+                }),
+                el("div", {
+                  className: "admin-stats-kpi",
+                  children: [
+                    el("span", { className: "admin-stats-kpi-label", text: "사이트별 합산 접속" }),
+                    statsAppSumValueEl
+                  ]
+                }),
+                el("div", {
+                  className: "admin-stats-kpi",
+                  children: [
+                    el("span", { className: "admin-stats-kpi-label", text: "등록된 사이트" }),
+                    statsAppsCountEl
+                  ]
+                })
+              ]
+            }),
+            el("div", {
+              className: "admin-stats-list-wrap",
+              children: [
+                el("span", { className: "admin-field-label", text: "사이트별 접속 수 (높은 순)" }),
+                statsRowsEl
+              ]
+            })
+          ]
+        });
+      }
+
       function updateThumbFileNote() {
         if (pendingThumbDataUrl) {
           thumbFileNoteEl.textContent = hasFirebaseSync
@@ -1547,6 +1816,7 @@
       }
 
       function renderRegisteredAppsList() {
+        renderAdminStats();
         clearNode(appListItemsEl);
         var rawApps = Array.isArray(getApps()) ? getApps() : [];
         var apps = global.PortfolioState && typeof global.PortfolioState.sortAppsNewestFirst === "function"
@@ -1568,6 +1838,10 @@
               return;
             }
             var isSelected = editingAppId && app.id === editingAppId;
+            var metaStats = hasStatsCapability ? resolveAdminStats() : null;
+            var metaViewsText = metaStats && app.id && typeof metaStats.appViews[app.id] === "number"
+              ? " · 조회 " + formatAdminNumber(metaStats.appViews[app.id]) + "회"
+              : "";
             var selectBtn = el("button", {
               className: isSelected ? "admin-app-item-select is-active" : "admin-app-item-select",
               props: { type: "button" },
@@ -1580,7 +1854,7 @@
                 el("span", { className: "admin-app-item-title", text: app.title || app.id || "제목 없음" }),
                 el("span", {
                   className: "admin-app-item-meta",
-                  text: (app.launchType === "embedded" ? "직접 탑재" : "웹 링크") + " · " + (app.id || "")
+                  text: (app.launchType === "embedded" ? "직접 탑재" : "웹 링크") + " · " + (app.id || "") + metaViewsText
                 })
               ]
             });
@@ -2338,6 +2612,7 @@
       var formArea = el("div", {
         className: "admin-form",
         children: [
+          statsSectionEl,
           el("section", {
             className: "admin-form-section",
             children: [
@@ -2450,6 +2725,9 @@
       renderRegisteredAppsList();
       renderTagSuggestionChips();
       updateThumbPreview();
+      if (hasFirebaseSync) {
+        refreshAdminStats(false);
+      }
 
       if (typeof urlInput.focus === "function") {
         urlInput.focus();

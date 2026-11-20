@@ -323,3 +323,153 @@ test("renderHeader, renderAppGrid, and renderDetailModal render view counts when
   renderDetailModal(modalRoot, sampleApp, { viewCount: 42 });
   assert.ok(modalRoot.textContent.includes("조회 42"));
 });
+
+test("initAdmin renders total and per-app visitor stats dashboard and refreshes live from Firebase", async () => {
+  const localStorage = createMemoryStorage();
+  const sessionStorage = createMemoryStorage();
+  let statsLoadCount = 0;
+
+  const elementsById = new Map();
+  const createEl = (tag) => {
+    const attrs = Object.create(null);
+    const listeners = Object.create(null);
+    const children = [];
+    let className = "";
+    let text = "";
+    const node = {
+      tagName: String(tag).toUpperCase(),
+      children,
+      attrs,
+      hidden: false,
+      disabled: false,
+      checked: false,
+      files: [],
+      style: {},
+      dataset: Object.create(null),
+      value: "",
+      setAttribute(k, v) {
+        attrs[k] = String(v);
+        if (k === "id") elementsById.set(String(v), node);
+      },
+      getAttribute(k) { return attrs[k] || null; },
+      get id() { return attrs.id || ""; },
+      set id(v) { attrs.id = String(v); elementsById.set(String(v), node); },
+      get className() { return className; },
+      set className(v) { className = String(v); },
+      appendChild(c) { children.push(c); return c; },
+      replaceChildren(...nodes) { children.length = 0; children.push(...nodes); },
+      addEventListener(e, fn) { (listeners[e] = listeners[e] || []).push(fn); },
+      dispatchEvent(evt) {
+        for (const fn of listeners[evt.type] || []) fn(evt);
+      },
+      click() { node.dispatchEvent({ type: "click", target: node }); },
+      focus() {},
+      select() {},
+      querySelector(sel) {
+        const queue = [...children];
+        while (queue.length > 0) {
+          const cur = queue.shift();
+          if (sel.startsWith("#") && cur.id === sel.slice(1)) return cur;
+          if (sel.startsWith(".") && cur.className.split(/\s+/).includes(sel.slice(1))) return cur;
+          if (cur.children) queue.push(...cur.children);
+        }
+        return null;
+      },
+      get textContent() {
+        return text + children.map((c) => c.textContent).join("");
+      },
+      set textContent(v) {
+        text = String(v);
+        children.length = 0;
+      }
+    };
+    return node;
+  };
+
+  const modalEl = createEl("div");
+  modalEl.hidden = true;
+  const doc = {
+    body: createEl("body"),
+    activeElement: null,
+    createElement: createEl,
+    createTextNode(t) { return { textContent: String(t), children: [] }; }
+  };
+
+  const sandbox = {
+    window: {
+      document: doc,
+      localStorage,
+      sessionStorage,
+      location: { href: "https://baekbeom99-dotcom.github.io/portfolio/", origin: "https://baekbeom99-dotcom.github.io" },
+      fetch: async (url) => {
+        if (String(url).endsWith("/stats.json")) {
+          statsLoadCount += 1;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              totalViews: statsLoadCount === 1 ? 15 : 22,
+              appViews: { "app-a": 3, "app-b": statsLoadCount === 1 ? 8 : 12 }
+            })
+          };
+        }
+        return { ok: false, status: 404 };
+      }
+    },
+    document: doc,
+    localStorage,
+    sessionStorage,
+    setTimeout,
+    clearTimeout,
+    AbortController
+  };
+  sandbox.window.window = sandbox.window;
+  sandbox.fetch = sandbox.window.fetch;
+
+  for (const rel of ["js/state.js", "js/render.js", "js/recommender.js", "js/github-sync.js", "js/firebase-sync.js", "js/admin.js"]) {
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT, rel), "utf8"), sandbox);
+  }
+
+  let latestCallbackStats = null;
+  const controller = sandbox.window.PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => [
+      { id: "app-a", title: "첫 번째 앱", launchType: "external", url: "https://example.com/a", createdAt: "2026-11-16" },
+      { id: "app-b", title: "두 번째 앱", launchType: "external", url: "https://example.com/b", createdAt: "2026-11-20" }
+    ],
+    getConfig: () => ({ siteTitle: "사부작스쿨" }),
+    getStats: () => ({ totalViews: 10, appViews: { "app-a": 2, "app-b": 5 } }),
+    onStatsLoaded: (s) => { latestCallbackStats = s; }
+  });
+
+  sessionStorage.setItem("ys_portfolio_admin_unlocked", "true");
+  // Re-init after unlocking session flag so renderAdminPanel opens directly
+  const unlockedCtrl = sandbox.window.PortfolioAdmin.initAdmin({
+    modalEl,
+    getApps: () => [
+      { id: "app-a", title: "첫 번째 앱", launchType: "external", url: "https://example.com/a", createdAt: "2026-11-16" },
+      { id: "app-b", title: "두 번째 앱", launchType: "external", url: "https://example.com/b", createdAt: "2026-11-20" }
+    ],
+    getConfig: () => ({ siteTitle: "사부작스쿨" }),
+    getStats: () => ({ totalViews: 10, appViews: { "app-a": 2, "app-b": 5 } }),
+    onStatsLoaded: (s) => { latestCallbackStats = s; }
+  });
+
+  unlockedCtrl.open();
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(elementsById.get("admin-total-views").textContent, "15회");
+  assert.equal(elementsById.get("admin-total-app-views").textContent, "11회");
+  assert.equal(elementsById.get("admin-total-apps-count").textContent, "2개");
+  assert.equal(latestCallbackStats.totalViews, 15);
+
+  const listEl = elementsById.get("admin-app-stats-list");
+  assert.equal(listEl.children[0].getAttribute("data-app-id"), "app-b");
+  assert.equal(listEl.children[1].getAttribute("data-app-id"), "app-a");
+
+  elementsById.get("admin-refresh-stats-btn").click();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(elementsById.get("admin-total-views").textContent, "22회");
+  assert.equal(elementsById.get("admin-total-app-views").textContent, "15회");
+  controller.close();
+});

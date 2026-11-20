@@ -256,6 +256,27 @@
         getConfig: function () {
           return config;
         },
+        getStats: function () {
+          return {
+            totalViews: currentSiteViews,
+            appViews: currentAppViews || Object.create(null)
+          };
+        },
+        onStatsLoaded: function (stats) {
+          if (!stats || typeof stats !== "object") {
+            return;
+          }
+          if (typeof stats.totalViews === "number" && isFinite(stats.totalViews)) {
+            currentSiteViews = stats.totalViews;
+          }
+          if (stats.appViews && typeof stats.appViews === "object") {
+            currentAppViews = stats.appViews;
+          }
+          currentStats = computeStats(store.getState().apps);
+          renderSiteHeader();
+          lastFilterKey = null;
+          renderFromState(store.getState());
+        },
         onAppsChanged: handleAppsChanged,
         onAuthChanged: function () {
           renderSiteHeader();
