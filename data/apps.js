@@ -188,5 +188,31 @@ window.PORTFOLIO_APPS = [
     ],
     "featured": false,
     "createdAt": "2026-11-19"
+  },
+  {
+    "id": "gimkit-style",
+    "title": "사부작스쿨 미니게임",
+    "tagline": "점프맵·탑쌓기·무한의 계단으로 즐기는 단순 연산·영어단어 학습 게임",
+    "purpose": "단순 연산(구구단·분수)과 영어단어 문제를 풀며 점프맵, 탑쌓기, 무한의 계단 등 다양한 미니게임을 즐길 수 있도록 제작한 학습용 웹앱입니다.",
+    "audience": "초등학생, 교사 및 자기주도 학습자",
+    "description": [
+      "제공 게임: 점프맵, 탑쌓기, 무한의 계단 등 다양한 미니게임",
+      "학습 영역: 단순 연산(구구단·분수) 및 영어단어 퀴즈 학습",
+      "문제를 풀어 에너지를 모으고 게임을 플레이하며 재미있게 복습할 수 있습니다.",
+      "모바일과 데스크톱 환경 모두에 맞춰 별도 설치 없이 바로 이용할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/gimkit-style.jpg",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/gimkit-style/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "수학",
+      "영어",
+      "게임"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-20"
   }
 ];
