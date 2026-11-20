@@ -46,64 +46,6 @@ body {
   color: var(--ink);
 }
 
-/* Preview Notice Bar */
-.craft-preview-notice {
-  background: #3a271b;
-  color: #fdf6ea;
-  border-bottom: 2px solid #c65522;
-  font-size: 0.85rem;
-}
-
-.craft-preview-notice-inner {
-  width: min(var(--container-max), 100% - 2rem);
-  margin: 0 auto;
-  padding: 0.55rem 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-}
-
-.craft-preview-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-}
-
-.craft-preview-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.14rem 0.55rem;
-  border-radius: var(--radius-pill);
-  background: #d99626;
-  color: #2c1d13;
-  font-size: 0.74rem;
-  font-weight: 800;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.craft-preview-back {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.28rem 0.8rem;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 253, 248, 0.14);
-  border: 1px solid rgba(255, 253, 248, 0.28);
-  color: #fffdf8;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.craft-preview-back:hover {
-  background: #c65522;
-  border-color: #c65522;
-}
-
 /* Header / Hero */
 .site-header {
   border-bottom: 2px solid var(--border);

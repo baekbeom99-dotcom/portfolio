@@ -8,7 +8,11 @@
   <meta property="og:type" content="website" />
   <meta property="og:title" content="사부작스쿨" />
   <meta property="og:description" content="교육용 및 일상생활을 위한 웹앱 공유 플랫폼" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" />
   <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/theme-craft.css" />
   <script defer src="./data/apps.js"></script>
   <script defer src="./js/state.js"></script>
   <script defer src="./js/render.js"></script>
@@ -112,5 +116,45 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>
+    (function () {
+      function enhanceCraftLogo() {
+        var header = document.getElementById("site-header");
+        if (!header) {
+          return;
+        }
+        var titleEl = header.querySelector("h1.hero-title");
+        if (!titleEl || titleEl.classList.contains("is-craft-logo")) {
+          return;
+        }
+        var label = (titleEl.textContent || "사부작스쿨").trim() || "사부작스쿨";
+        var img = document.createElement("img");
+        img.className = "craft-hero-logo";
+        img.src = "./assets/sabujaak-logo.png";
+        img.alt = label;
+        img.addEventListener("error", function () {
+          titleEl.classList.remove("is-craft-logo");
+          titleEl.textContent = label;
+        });
+
+        var sr = document.createElement("span");
+        sr.className = "sr-only";
+        sr.textContent = label;
+
+        titleEl.classList.add("is-craft-logo");
+        titleEl.replaceChildren(img, sr);
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        enhanceCraftLogo();
+        var header = document.getElementById("site-header");
+        if (header && typeof MutationObserver === "function") {
+          var observer = new MutationObserver(enhanceCraftLogo);
+          observer.observe(header, { childList: true });
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

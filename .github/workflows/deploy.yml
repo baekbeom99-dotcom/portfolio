@@ -28,9 +28,6 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html .nojekyll _site/
-          if [ -f preview.html ]; then
-            cp preview.html _site/
-          fi
           for dir in css js data assets apps; do
             if [ -d "$dir" ]; then
               cp -r "$dir" "_site/$dir"
