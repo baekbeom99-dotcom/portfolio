@@ -23,9 +23,9 @@
  */
 
 window.PORTFOLIO_CONFIG = {
-  "siteTitle": "윤선생 App Studio",
+  "siteTitle": "사부작스쿨",
   "siteSubtitle": "교육용 및 일상생활을 위한 웹앱 공유 플랫폼",
-  "ownerName": "윤선생",
+  "ownerName": "사부자기 윤선생",
   "contactLink": ""
 };
 

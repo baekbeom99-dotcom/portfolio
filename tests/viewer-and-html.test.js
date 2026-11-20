@@ -421,9 +421,9 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     lastIndex = match.index;
   }
 
-  assert.match(html, /<title>윤선생 App Studio<\/title>/);
+  assert.match(html, /<title>사부작스쿨<\/title>/);
   assert.match(html, /<meta\s+name=["']description["']\s+content=["']교육용 및 일상생활을 위한 웹앱 공유 플랫폼["']/);
-  assert.match(html, /<meta\s+property=["']og:title["']\s+content=["']윤선생 App Studio["']/);
+  assert.match(html, /<meta\s+property=["']og:title["']\s+content=["']사부작스쿨["']/);
   assert.match(html, /<meta\s+property=["']og:description["']\s+content=["']교육용 및 일상생활을 위한 웹앱 공유 플랫폼["']/);
 
   for (const requiredId of [

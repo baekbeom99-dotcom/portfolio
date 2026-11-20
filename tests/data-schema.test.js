@@ -64,9 +64,9 @@ test("data/apps.js defines valid PORTFOLIO_CONFIG and PORTFOLIO_APPS", () => {
   const config = sandbox.window.PORTFOLIO_CONFIG;
   const apps = sandbox.window.PORTFOLIO_APPS;
 
-  assert.equal(config.siteTitle, "윤선생 App Studio");
+  assert.equal(config.siteTitle, "사부작스쿨");
   assert.equal(config.siteSubtitle, "교육용 및 일상생활을 위한 웹앱 공유 플랫폼");
-  assert.equal(config.ownerName, "윤선생");
+  assert.equal(config.ownerName, "사부자기 윤선생");
   assert.equal(typeof config.contactLink, "string");
 
   assert.ok(Array.isArray(apps));
