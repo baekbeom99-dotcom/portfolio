@@ -1405,7 +1405,10 @@
 
       function renderRegisteredAppsList() {
         clearNode(appListItemsEl);
-        var apps = Array.isArray(getApps()) ? getApps() : [];
+        var rawApps = Array.isArray(getApps()) ? getApps() : [];
+        var apps = global.PortfolioState && typeof global.PortfolioState.sortAppsNewestFirst === "function"
+          ? global.PortfolioState.sortAppsNewestFirst(rawApps, false)
+          : rawApps.slice().reverse();
         if (apps.length === 0) {
           appListItemsEl.appendChild(
             el("p", {

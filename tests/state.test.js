@@ -183,3 +183,28 @@ test("setApps updates catalog, clears stale filters/selection, and notifies subs
   mixedStore.setApps([SAMPLE_APPS[0]]); // external only -> launch filter UI hidden
   assert.equal(mixedStore.getState().launchFilter, "all", "launchFilter must reset when fewer than 2 launch types exist");
 });
+
+test("sorts apps newest-first by createdAt while preserving featured priority and same-day recency", () => {
+  const { createStore, sortAppsNewestFirst } = loadStateModule();
+  const datedApps = [
+    { id: "oldest-1", title: "Oldest 1", launchType: "external", tags: [], featured: false, createdAt: "2026-11-16" },
+    { id: "oldest-2", title: "Oldest 2", launchType: "external", tags: [], featured: false, createdAt: "2026-11-16" },
+    { id: "feat-old", title: "Featured Old", launchType: "external", tags: [], featured: true, createdAt: "2026-11-15" },
+    { id: "mid", title: "Mid", launchType: "external", tags: [], featured: false, createdAt: "2026-11-19" },
+    { id: "undated", title: "Undated", launchType: "external", tags: [], featured: false },
+    { id: "feat-new", title: "Featured New", launchType: "external", tags: [], featured: true, createdAt: "2026-11-20" },
+    { id: "newest", title: "Newest", launchType: "external", tags: [], featured: false, createdAt: "2026-11-20" }
+  ];
+
+  const store = createStore(datedApps);
+  assert.deepEqual(
+    Array.from(store.getFilteredApps(), (a) => a.id),
+    ["feat-new", "feat-old", "newest", "mid", "oldest-2", "oldest-1", "undated"]
+  );
+
+  // Without featured grouping (used in admin list): strict newest-first
+  assert.deepEqual(
+    Array.from(sortAppsNewestFirst(datedApps, false), (a) => a.id),
+    ["newest", "feat-new", "mid", "oldest-2", "oldest-1", "feat-old", "undated"]
+  );
+});

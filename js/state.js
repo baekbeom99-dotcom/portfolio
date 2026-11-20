@@ -12,6 +12,65 @@
     mobile: true
   };
 
+  function parseCreatedAtScore(createdAt) {
+    if (typeof createdAt !== "string") {
+      return -1;
+    }
+    var trimmed = createdAt.trim();
+    if (!trimmed) {
+      return -1;
+    }
+    var parsed = Date.parse(trimmed);
+    return isNaN(parsed) ? -1 : parsed;
+  }
+
+  function sortEntriesNewestFirst(entries) {
+    return entries
+      .slice()
+      .sort(function (a, b) {
+        var scoreA = parseCreatedAtScore(a.app.createdAt);
+        var scoreB = parseCreatedAtScore(b.app.createdAt);
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+        // On equal dates, later entries in data/apps.js were added more recently.
+        if (scoreA !== -1) {
+          return b.index - a.index;
+        }
+        return a.index - b.index;
+      })
+      .map(function (entry) {
+        return entry.app;
+      });
+  }
+
+  function sortAppsNewestFirst(apps, groupFeatured) {
+    if (!Array.isArray(apps)) {
+      return [];
+    }
+    var shouldGroup = groupFeatured !== false;
+    var featuredEntries = [];
+    var regularEntries = [];
+
+    for (var i = 0; i < apps.length; i += 1) {
+      var app = apps[i];
+      if (!app) {
+        continue;
+      }
+      var entry = { app: app, index: i };
+      if (shouldGroup && app.featured === true) {
+        featuredEntries.push(entry);
+      } else {
+        regularEntries.push(entry);
+      }
+    }
+
+    if (!shouldGroup) {
+      return sortEntriesNewestFirst(regularEntries);
+    }
+    return sortEntriesNewestFirst(featuredEntries).concat(sortEntriesNewestFirst(regularEntries));
+  }
+
   function matchesSearch(app, normalizedQuery) {
     if (!normalizedQuery) {
       return true;
@@ -217,8 +276,8 @@
 
     function getFilteredApps() {
       var normalizedQuery = state.searchQuery.trim().toLowerCase();
-      var featuredApps = [];
-      var regularApps = [];
+      var featuredEntries = [];
+      var regularEntries = [];
 
       for (var i = 0; i < state.apps.length; i += 1) {
         var app = state.apps[i];
@@ -237,14 +296,15 @@
           continue;
         }
 
+        var entry = { app: app, index: i };
         if (app.featured === true) {
-          featuredApps.push(app);
+          featuredEntries.push(entry);
         } else {
-          regularApps.push(app);
+          regularEntries.push(entry);
         }
       }
 
-      return featuredApps.concat(regularApps);
+      return sortEntriesNewestFirst(featuredEntries).concat(sortEntriesNewestFirst(regularEntries));
     }
 
     function getAllTags() {
@@ -315,6 +375,7 @@
   }
 
   global.PortfolioState = {
-    createStore: createStore
+    createStore: createStore,
+    sortAppsNewestFirst: sortAppsNewestFirst
   };
 })(typeof window !== "undefined" ? window : globalThis);
