@@ -179,7 +179,7 @@ window.PORTFOLIO_APPS = [
     "thumbnail": "./assets/thumbnails/app-c264595d.png",
     "thumbnailFit": "auto",
     "launchType": "external",
-    "url": "https://baekbeom99-dotcom.github.io/gugu-monster/",
+    "url": "https://baekbeom99-dotcom.github.io/catch-gugumon/",
     "embedMode": "newTab",
     "tags": [
       "교육",
