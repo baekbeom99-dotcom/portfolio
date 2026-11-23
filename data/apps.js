@@ -214,5 +214,29 @@ window.PORTFOLIO_APPS = [
     ],
     "featured": false,
     "createdAt": "2026-11-20"
+  },
+  {
+    "id": "pikachu-volleyball",
+    "title": "모션배구",
+    "tagline": "카메라 모션 인식으로 즐기는 1인용·2인용 체육 배구 게임",
+    "purpose": "카메라 모션 인식을 통해 몸을 움직이며 1인용 또는 2인용으로 배구 경기를 즐길 수 있도록 제작한 체육·활동형 웹앱입니다.",
+    "audience": "초·중·고 학생, 교사 및 실내 체육 활동을 원하는 사용자",
+    "description": [
+      "카메라 모션 인식으로 몸을 움직여 이동·점프·공격을 조작할 수 있습니다.",
+      "1인용 및 2인용 플레이를 모두 지원합니다.",
+      "별도 설치 없이 브라우저에서 바로 실행할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/pikachu-volleyball.jpg",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/pikachu-volleyball/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "체육",
+      "게임"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-24"
   }
 ];
