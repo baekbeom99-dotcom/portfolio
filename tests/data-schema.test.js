@@ -6,11 +6,16 @@ const vm = require("node:vm");
 
 const ROOT = path.resolve(__dirname, "..");
 
-test("GitHub Pages config files (.nojekyll and deploy.yml) exist", () => {
+test("GitHub Pages config files (.nojekyll, robots.txt, and deploy.yml) exist", () => {
   assert.equal(fs.existsSync(path.join(ROOT, ".nojekyll")), true);
+  assert.equal(fs.existsSync(path.join(ROOT, "robots.txt")), true);
+  const robots = fs.readFileSync(path.join(ROOT, "robots.txt"), "utf8");
+  assert.match(robots, /User-agent:\s*GPTBot/);
+  assert.match(robots, /User-agent:\s*ClaudeBot/);
   const workflowPath = path.join(ROOT, ".github", "workflows", "deploy.yml");
   assert.equal(fs.existsSync(workflowPath), true);
   const workflow = fs.readFileSync(workflowPath, "utf8");
+  assert.match(workflow, /robots\.txt/);
   assert.match(workflow, /actions\/deploy-pages/);
   assert.match(workflow, /actions\/upload-pages-artifact/);
 });

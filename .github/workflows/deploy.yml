@@ -27,7 +27,7 @@ jobs:
       - name: Stage static portfolio files
         run: |
           mkdir -p _site
-          cp index.html .nojekyll _site/
+          cp index.html .nojekyll robots.txt _site/
           for dir in css js data assets apps; do
             if [ -d "$dir" ]; then
               cp -r "$dir" "_site/$dir"
