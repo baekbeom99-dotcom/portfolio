@@ -230,7 +230,7 @@ window.PORTFOLIO_APPS = [
     "thumbnail": "./assets/thumbnails/pikachu-volleyball.jpg",
     "thumbnailFit": "auto",
     "launchType": "external",
-    "url": "https://baekbeom99-dotcom.github.io/pikachu-volleyball/",
+    "url": "https://pikachu-volleyball.baekbeom99.workers.dev/",
     "embedMode": "newTab",
     "tags": [
       "교육",
@@ -251,7 +251,7 @@ window.PORTFOLIO_APPS = [
       "수준별 문제 풀이와 학습 게임으로 복습하며 별과 도장을 모을 수 있습니다.",
       "모바일과 데스크톱 환경 모두에서 별도 설치 없이 바로 이용할 수 있습니다."
     ],
-    "thumbnail": "./assets/thumbnails/japanese-app.jpg",
+    "thumbnail": "./assets/thumbnails/japanese-app-v2.jpg",
     "thumbnailFit": "auto",
     "launchType": "external",
     "url": "https://baekbeom99-dotcom.github.io/japanese-app/",
