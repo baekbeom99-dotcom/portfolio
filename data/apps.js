@@ -44,7 +44,7 @@ window.PORTFOLIO_APPS = [
     "thumbnail": "./assets/thumbnails/animal-race.png",
     "thumbnailFit": "auto",
     "launchType": "external",
-    "url": "https://baekbeom99-dotcom.github.io/animal-race/",
+    "url": "https://animal-race-ctz.pages.dev",
     "embedMode": "newTab",
     "tags": [
       "교육",
