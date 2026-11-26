@@ -262,5 +262,29 @@ window.PORTFOLIO_APPS = [
     ],
     "featured": false,
     "createdAt": "2026-11-26"
+  },
+  {
+    "id": "memori-card-game",
+    "title": "메모리 매칭 게임",
+    "tagline": "1~4인 함께 즐기는 이미지·한글·영어·알파벳 대소문자 카드 짝 맞추기 게임",
+    "purpose": "그림 카드, 단어(한글), 영어 학습, 알파벳 대소문자 매칭 모드로 기억력과 어휘·문자 감각을 기를 수 있도록 제작한 학습용 메모리 카드 게임입니다.",
+    "audience": "유치원·초등학생, 교사 및 자기주도 학습자",
+    "description": [
+      "이미지·단어(한글)·영어 매칭·알파벳 대소문자 매칭 4가지 학습 모드를 지원합니다.",
+      "1~4인 플레이어와 16·36·48·64장 카드 규모를 선택해 함께 대결하거나 복습할 수 있습니다.",
+      "별도 설치 없이 PC와 태블릿·모바일 브라우저에서 바로 실행할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/memori-card-game.jpg",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://8083a0ce.memori-card-game.pages.dev/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "한글",
+      "알파벳"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-26"
   }
 ];
