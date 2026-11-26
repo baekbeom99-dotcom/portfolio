@@ -239,5 +239,28 @@ window.PORTFOLIO_APPS = [
     ],
     "featured": false,
     "createdAt": "2026-11-24"
+  },
+  {
+    "id": "japanese-app",
+    "title": "일본어 도장 | 킨타의 가나·단어 대모험",
+    "tagline": "히라가나·가타카나와 기초 일본어 단어를 게임·도장북으로 익히는 학습 웹앱",
+    "purpose": "히라가나·가타카나 문자와 기초 일본어 단어를 수준별 문제, 학습 게임, 도장 모으기 활동으로 스스로 익힐 수 있도록 제작했습니다.",
+    "audience": "초·중·고 학생, 교사 및 일본어 기초 입문자",
+    "description": [
+      "히라가나·가타카나(가나) 및 기초 일본어 단어 학습과 발음 듣기를 지원합니다.",
+      "수준별 문제 풀이와 학습 게임으로 복습하며 별과 도장을 모을 수 있습니다.",
+      "모바일과 데스크톱 환경 모두에서 별도 설치 없이 바로 이용할 수 있습니다."
+    ],
+    "thumbnail": "./assets/thumbnails/japanese-app.jpg",
+    "thumbnailFit": "auto",
+    "launchType": "external",
+    "url": "https://baekbeom99-dotcom.github.io/japanese-app/",
+    "embedMode": "newTab",
+    "tags": [
+      "교육",
+      "일본어"
+    ],
+    "featured": false,
+    "createdAt": "2026-11-26"
   }
 ];
