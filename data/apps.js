@@ -210,6 +210,7 @@ window.PORTFOLIO_APPS = [
       "교육",
       "수학",
       "영어",
+      "일본어",
       "게임"
     ],
     "featured": false,
