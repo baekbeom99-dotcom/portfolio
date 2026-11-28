@@ -37,6 +37,7 @@
     var tagFiltersEl = document.getElementById("tag-filters");
     var appGridEl = document.getElementById("app-grid");
     var appsCountEl = document.getElementById("apps-count");
+    var feedbackBoardEl = document.getElementById("feedback-board");
     var detailModalEl = document.getElementById("detail-modal");
     var adminModalEl = document.getElementById("admin-modal");
     var viewerOverlayEl = document.getElementById("viewer-overlay");
@@ -98,6 +99,7 @@
     syncLaunchGroupVisibility(currentStats);
 
     var adminController = null;
+    var boardController = null;
 
     function isAdminUnlocked() {
       if (adminController && typeof adminController.isUnlocked === "function") {
@@ -280,6 +282,9 @@
         onAppsChanged: handleAppsChanged,
         onAuthChanged: function () {
           renderSiteHeader();
+          if (boardController && typeof boardController.setAdminUnlocked === "function") {
+            boardController.setAdminUnlocked(isAdminUnlocked());
+          }
         },
         onToast: showToast,
         onOpenChange: function () {
@@ -290,6 +295,18 @@
 
     renderSiteHeader();
     renderDraftBanner();
+
+    if (
+      global.PortfolioBoard &&
+      typeof global.PortfolioBoard.createBoardController === "function" &&
+      feedbackBoardEl
+    ) {
+      boardController = global.PortfolioBoard.createBoardController({
+        containerEl: feedbackBoardEl,
+        isAdminUnlocked: isAdminUnlocked,
+        onNotify: showToast
+      });
+    }
 
     function copyAppShareLink(app) {
       if (!app || !app.id) {

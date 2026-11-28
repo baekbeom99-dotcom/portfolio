@@ -291,6 +291,41 @@ body {
   background: var(--accent);
 }
 
+/* Feedback Board Craft Theme */
+.board-card-shell {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.board-form {
+  background: var(--surface-tint);
+  border: 1.5px solid var(--border);
+}
+
+.board-post {
+  background: #faf5eb;
+  border: 1.5px solid var(--border);
+}
+
+.board-post-reply {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-left: 4px solid var(--accent);
+}
+
+.board-count-badge {
+  background: var(--ochre-soft);
+  color: var(--ochre-ink);
+  border: 1px solid rgba(217, 150, 38, 0.28);
+}
+
 /* Footer */
 .site-footer {
   border-top: 2px solid var(--border);

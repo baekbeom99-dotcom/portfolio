@@ -409,6 +409,7 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     "./js/recommender.js",
     "./js/github-sync.js",
     "./js/admin.js",
+    "./js/board.js",
     "./js/app.js"
   ];
   let lastIndex = -1;
@@ -432,6 +433,7 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     "search-input",
     "tag-filters",
     "app-grid",
+    "feedback-board",
     "detail-modal",
     "admin-modal",
     "viewer-overlay",
@@ -473,6 +475,10 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
     ".btn-admin-entry",
     ".btn-admin-lock",
     ".draft-banner",
+    ".board-section",
+    ".board-card-shell",
+    ".board-post",
+    ".board-reply-editor",
     ".admin-dialog",
     ".admin-auth-box",
     ".admin-layout",
@@ -577,6 +583,7 @@ function setupPortfolioHarness(options = {}) {
   const tagFiltersEl = createWithId("div", "tag-filters");
   const appsCountEl = createWithId("p", "apps-count");
   const appGridEl = createWithId("div", "app-grid");
+  const feedbackBoardEl = createWithId("section", "feedback-board");
   const detailModalEl = createWithId("div", "detail-modal", { hidden: true });
   const adminModalEl = createWithId("div", "admin-modal", { hidden: true });
   const toastEl = createWithId("div", "toast", { hidden: true });
@@ -616,6 +623,7 @@ function setupPortfolioHarness(options = {}) {
   doc.body.appendChild(tagFiltersEl);
   doc.body.appendChild(appsCountEl);
   doc.body.appendChild(appGridEl);
+  doc.body.appendChild(feedbackBoardEl);
   doc.body.appendChild(detailModalEl);
   doc.body.appendChild(adminModalEl);
   doc.body.appendChild(overlayDom.overlay);
@@ -655,6 +663,9 @@ function setupPortfolioHarness(options = {}) {
 
   if (options.portfolioAdmin) {
     sandbox.window.PortfolioAdmin = options.portfolioAdmin;
+  }
+  if (options.portfolioBoard) {
+    sandbox.window.PortfolioBoard = options.portfolioBoard;
   }
 
   vm.runInNewContext(fs.readFileSync(path.join(ROOT, "data/apps.js"), "utf8"), sandbox);
@@ -1047,4 +1058,54 @@ test("PortfolioApp.initPortfolio preserves published cache across reload until c
   h2.doc.head.children[0].onload();
   assert.equal(clearedPublishedCache, 1);
   assert.equal(h2.instance.store.getState().apps.length, 1);
+});
+
+test("PortfolioApp.initPortfolio mounts PortfolioBoard and syncs admin auth changes", () => {
+  let capturedBoardOpts = null;
+  const adminStates = [];
+  let adminUnlocked = false;
+  let capturedAdminOpts = null;
+
+  setupPortfolioHarness({
+    apps: [],
+    portfolioAdmin: {
+      isUnlocked: () => adminUnlocked,
+      loadDraftApps: () => null,
+      hasDraftApps: () => false,
+      loadPublishedCache: () => null,
+      initAdmin: (opts) => {
+        capturedAdminOpts = opts;
+        return {
+          isUnlocked: () => adminUnlocked,
+          isOpen: () => false,
+          open: () => {},
+          close: () => {},
+          lock: () => {}
+        };
+      }
+    },
+    portfolioBoard: {
+      createBoardController: (opts) => {
+        capturedBoardOpts = opts;
+        return {
+          setAdminUnlocked(next) {
+            adminStates.push(Boolean(next));
+          },
+          refresh() {}
+        };
+      }
+    }
+  });
+
+  assert.ok(capturedBoardOpts, "initPortfolio must mount PortfolioBoard.createBoardController");
+  assert.equal(capturedBoardOpts.containerEl.id, "feedback-board");
+  assert.equal(capturedBoardOpts.isAdminUnlocked(), false);
+
+  adminUnlocked = true;
+  capturedAdminOpts.onAuthChanged(true);
+  assert.deepEqual(adminStates, [true]);
+
+  adminUnlocked = false;
+  capturedAdminOpts.onAuthChanged(false);
+  assert.deepEqual(adminStates, [true, false]);
 });
