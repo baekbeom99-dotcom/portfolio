@@ -148,13 +148,15 @@ function createFakeDom() {
 
 function loadBoardHarness(options = {}) {
   const dom = createFakeDom();
-  const containerEl = dom.document.createElement("section");
-  containerEl.id = "feedback-board";
+  const modalEl = dom.document.createElement("div");
+  modalEl.id = "board-modal";
+  modalEl.hidden = true;
 
   let currentNow = typeof options.initialNow === "number" ? options.initialNow : 1764345600000;
   let storedAuth = options.storedAuth || null;
   let adminUnlocked = Boolean(options.adminUnlocked);
   const notifications = [];
+  const openChanges = [];
 
   const postsStore = Array.isArray(options.initialPosts) ? options.initialPosts.slice() : [];
   const calls = {
@@ -230,21 +232,28 @@ function loadBoardHarness(options = {}) {
   vm.runInNewContext(fs.readFileSync(path.join(ROOT, "js", "board.js"), "utf8"), sandbox);
 
   const controller = sandbox.window.PortfolioBoard.createBoardController({
-    containerEl,
+    modalEl,
     firebaseApi,
     isAdminUnlocked: () => adminUnlocked,
     onNotify: (msg) => notifications.push(msg),
+    onOpenChange: (isOpen) => openChanges.push(Boolean(isOpen)),
     pageSize: options.pageSize || 5,
     cooldownMs: options.cooldownMs !== undefined ? options.cooldownMs : 10000,
     now: () => currentNow
   });
 
+  if (options.autoOpen !== false) {
+    controller.open();
+  }
+
   return {
     dom,
-    containerEl,
+    containerEl: modalEl,
+    modalEl,
     controller,
     calls,
     notifications,
+    openChanges,
     setNow(next) { currentNow = next; },
     setStoredAuth(next) { storedAuth = next; },
     setAdminUnlocked(next) {
@@ -253,6 +262,40 @@ function loadBoardHarness(options = {}) {
     }
   };
 }
+
+test("PortfolioBoard opens and closes as a modal dialog via open/close/backdrop/close button", async () => {
+  const h = loadBoardHarness({
+    autoOpen: false,
+    initialPosts: [
+      { id: "-O1", author: "방문자", content: "테스트 글입니다.", createdAt: 1764340000000 }
+    ]
+  });
+
+  assert.equal(h.modalEl.hidden, true);
+  assert.equal(h.controller.isOpen(), false);
+  assert.equal(h.calls.load, 0, "Should defer initial network load until modal is opened");
+
+  h.controller.open();
+  assert.equal(h.modalEl.hidden, false);
+  assert.equal(h.modalEl.getAttribute("aria-hidden"), "false");
+  assert.equal(h.controller.isOpen(), true);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(h.calls.load, 1);
+
+  const backdrop = h.modalEl.querySelector(".modal-backdrop");
+  assert.ok(backdrop);
+  backdrop.click();
+  assert.equal(h.modalEl.hidden, true);
+  assert.equal(h.controller.isOpen(), false);
+
+  h.controller.open();
+  assert.equal(h.controller.isOpen(), true);
+  const closeBtn = h.dom.elementsById.get("board-close-btn");
+  assert.ok(closeBtn);
+  closeBtn.click();
+  assert.equal(h.controller.isOpen(), false);
+  assert.deepEqual(h.openChanges, [true, false, true, false]);
+});
 
 test("PortfolioBoard renders initial posts, defaults empty author to 익명, and prevents XSS", async () => {
   const h = loadBoardHarness({

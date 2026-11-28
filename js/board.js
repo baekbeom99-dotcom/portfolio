@@ -48,13 +48,13 @@
   }
 
   /**
-   * Builds and manages the public inquiry/suggestion/request board section.
+   * Builds and manages the public inquiry/suggestion/request board modal.
    */
   function createBoardController(options) {
     var opts = options || {};
     var doc = opts.document || (typeof document !== "undefined" ? document : null);
-    var containerEl = opts.containerEl || (doc && doc.getElementById ? doc.getElementById("feedback-board") : null);
-    if (!doc || !containerEl) {
+    var modalEl = opts.modalEl || opts.containerEl || (doc && doc.getElementById ? doc.getElementById("board-modal") : null);
+    if (!doc || !modalEl) {
       return null;
     }
 
@@ -63,6 +63,7 @@
     var cooldownMs = typeof opts.cooldownMs === "number" && opts.cooldownMs >= 0 ? opts.cooldownMs : DEFAULT_COOLDOWN_MS;
     var nowFn = typeof opts.now === "function" ? opts.now : function () { return Date.now(); };
     var onNotify = typeof opts.onNotify === "function" ? opts.onNotify : function () {};
+    var onOpenChange = typeof opts.onOpenChange === "function" ? opts.onOpenChange : function () {};
 
     var adminUnlocked = typeof opts.isAdminUnlocked === "function"
       ? Boolean(opts.isAdminUnlocked())
@@ -79,12 +80,19 @@
     var busyPostId = null;
     var destroyed = false;
 
+    var backdrop = createEl(doc, "div", "modal-backdrop");
+    var dialog = createEl(doc, "div", "modal-dialog board-modal-dialog");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "board-modal-title");
+
     var shell = createEl(doc, "div", "board-card-shell");
 
     // Header row
     var header = createEl(doc, "div", "board-header");
     var headerInfo = createEl(doc, "div", "board-header-info");
     var titleEl = createEl(doc, "h2", "board-title", "문의 · 건의 · 요청 게시판");
+    titleEl.id = "board-modal-title";
     var subtitleEl = createEl(
       doc,
       "p",
@@ -100,8 +108,13 @@
     var refreshBtn = createEl(doc, "button", "board-refresh-btn", "새로고침");
     refreshBtn.id = "board-refresh";
     refreshBtn.type = "button";
+    var closeBtn = createEl(doc, "button", "modal-close board-close-btn", "×");
+    closeBtn.id = "board-close-btn";
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "게시판 닫기");
     headerActions.appendChild(countBadge);
     headerActions.appendChild(refreshBtn);
+    headerActions.appendChild(closeBtn);
 
     header.appendChild(headerInfo);
     header.appendChild(headerActions);
@@ -187,12 +200,16 @@
     layout.appendChild(formEl);
     layout.appendChild(listWrap);
     shell.appendChild(layout);
+    dialog.appendChild(shell);
 
-    if (typeof containerEl.replaceChildren === "function") {
-      containerEl.replaceChildren(shell);
+    modalEl.hidden = true;
+    modalEl.setAttribute("aria-hidden", "true");
+    if (typeof modalEl.replaceChildren === "function") {
+      modalEl.replaceChildren(backdrop, dialog);
     } else {
-      containerEl.textContent = "";
-      containerEl.appendChild(shell);
+      modalEl.textContent = "";
+      modalEl.appendChild(backdrop);
+      modalEl.appendChild(dialog);
     }
 
     function setFormStatus(message, isError) {
@@ -576,10 +593,44 @@
     formEl.addEventListener("submit", handleSubmit);
     contentInput.addEventListener("input", updateCharCount);
     refreshBtn.addEventListener("click", refresh);
+    backdrop.addEventListener("click", function () {
+      close();
+    });
+    closeBtn.addEventListener("click", function () {
+      close();
+    });
     moreBtn.addEventListener("click", function () {
       visibleCount += pageSize;
       renderPosts();
     });
+
+    function isOpen() {
+      return Boolean(modalEl && !modalEl.hidden);
+    }
+
+    function open() {
+      if (destroyed) {
+        return;
+      }
+      modalEl.hidden = false;
+      modalEl.setAttribute("aria-hidden", "false");
+      onOpenChange(true);
+      refresh();
+      if (typeof contentInput.focus === "function") {
+        contentInput.focus();
+      }
+    }
+
+    function close() {
+      if (destroyed) {
+        return;
+      }
+      confirmDeleteId = null;
+      editingReplyId = null;
+      modalEl.hidden = true;
+      modalEl.setAttribute("aria-hidden", "true");
+      onOpenChange(false);
+    }
 
     function setAdminUnlocked(nextUnlocked) {
       adminUnlocked = Boolean(nextUnlocked);
@@ -587,16 +638,19 @@
         confirmDeleteId = null;
         editingReplyId = null;
       }
-      renderPosts();
+      if (isOpen()) {
+        renderPosts();
+      }
     }
 
     function destroy() {
       destroyed = true;
     }
 
-    refresh();
-
     return {
+      isOpen: isOpen,
+      open: open,
+      close: close,
       refresh: refresh,
       setAdminUnlocked: setAdminUnlocked,
       destroy: destroy

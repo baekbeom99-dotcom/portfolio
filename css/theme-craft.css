@@ -112,6 +112,19 @@ body {
   box-shadow: 0 2px 0 rgba(197, 177, 149, 0.45);
 }
 
+.btn-board-entry {
+  border: 1.5px solid rgba(198, 85, 34, 0.42);
+  background: var(--ochre-soft);
+  color: var(--ochre-ink);
+  box-shadow: 0 2px 0 rgba(217, 150, 38, 0.24);
+}
+
+.btn-board-entry:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fffdf8;
+}
+
 .btn-admin-entry:hover {
   border-color: var(--accent);
   color: var(--accent);
@@ -293,9 +306,7 @@ body {
 
 /* Feedback Board Craft Theme */
 .board-card-shell {
-  border: 2px solid var(--border);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
 }
 
 .board-title {

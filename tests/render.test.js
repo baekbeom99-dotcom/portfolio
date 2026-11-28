@@ -334,15 +334,27 @@ test("renderHeader renders config, stats, safe contactLink, and omits unsafe jav
   assert.ok(mailtoLink);
   assert.equal(mailtoLink.href, "mailto:maker@example.com");
 
-  // Admin header actions: locked vs unlocked
+  // Board + Admin header actions: locked vs unlocked
   let openCalls = 0;
   let lockCalls = 0;
+  let boardOpenCalls = 0;
   renderHeader(
     rootEl,
     { siteTitle: "윤선생 App Studio", siteSubtitle: "Sub", ownerName: "윤선생" },
     { totalCount: 0, embeddedCount: 0, externalCount: 0 },
-    { isAdminUnlocked: false, onOpenAdmin: () => { openCalls += 1; } }
+    {
+      isAdminUnlocked: false,
+      onOpenAdmin: () => { openCalls += 1; },
+      onOpenBoard: () => { boardOpenCalls += 1; }
+    }
   );
+  const boardBtn = findFirst(rootEl, (n) => n.id === "board-open-btn");
+  assert.ok(boardBtn, "Expected top board entry button");
+  assert.equal(boardBtn.textContent, "문의·건의 게시판");
+  assert.equal(boardBtn.type, "button");
+  boardBtn.click();
+  assert.equal(boardOpenCalls, 1);
+
   const lockedToggleBtn = findFirst(rootEl, (n) => n.id === "admin-toggle-btn");
   assert.ok(lockedToggleBtn);
   assert.equal(lockedToggleBtn.textContent, "관리자 모드");

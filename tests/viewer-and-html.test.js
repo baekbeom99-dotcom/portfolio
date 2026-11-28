@@ -433,8 +433,8 @@ test("index.html declares relative scripts in strict dependency order, zero ES m
     "search-input",
     "tag-filters",
     "app-grid",
-    "feedback-board",
     "detail-modal",
+    "board-modal",
     "admin-modal",
     "viewer-overlay",
     "viewer-iframe",
@@ -475,7 +475,8 @@ test("css/styles.css exists and defines core showcase, modal, viewer, mobile pre
     ".btn-admin-entry",
     ".btn-admin-lock",
     ".draft-banner",
-    ".board-section",
+    ".btn-board-entry",
+    ".board-modal-dialog",
     ".board-card-shell",
     ".board-post",
     ".board-reply-editor",
@@ -583,8 +584,8 @@ function setupPortfolioHarness(options = {}) {
   const tagFiltersEl = createWithId("div", "tag-filters");
   const appsCountEl = createWithId("p", "apps-count");
   const appGridEl = createWithId("div", "app-grid");
-  const feedbackBoardEl = createWithId("section", "feedback-board");
   const detailModalEl = createWithId("div", "detail-modal", { hidden: true });
+  const boardModalEl = createWithId("div", "board-modal", { hidden: true });
   const adminModalEl = createWithId("div", "admin-modal", { hidden: true });
   const toastEl = createWithId("div", "toast", { hidden: true });
 
@@ -623,8 +624,8 @@ function setupPortfolioHarness(options = {}) {
   doc.body.appendChild(tagFiltersEl);
   doc.body.appendChild(appsCountEl);
   doc.body.appendChild(appGridEl);
-  doc.body.appendChild(feedbackBoardEl);
   doc.body.appendChild(detailModalEl);
+  doc.body.appendChild(boardModalEl);
   doc.body.appendChild(adminModalEl);
   doc.body.appendChild(overlayDom.overlay);
   doc.body.appendChild(toastEl);
@@ -1060,46 +1061,77 @@ test("PortfolioApp.initPortfolio preserves published cache across reload until c
   assert.equal(h2.instance.store.getState().apps.length, 1);
 });
 
-test("PortfolioApp.initPortfolio mounts PortfolioBoard and syncs admin auth changes", () => {
+test("PortfolioApp.initPortfolio mounts PortfolioBoard modal, opens from header button, closes on Escape, and syncs admin auth", () => {
   let capturedBoardOpts = null;
   const adminStates = [];
   let adminUnlocked = false;
+  let boardOpen = false;
   let capturedAdminOpts = null;
 
-  setupPortfolioHarness({
-    apps: [],
-    portfolioAdmin: {
-      isUnlocked: () => adminUnlocked,
-      loadDraftApps: () => null,
-      hasDraftApps: () => false,
-      loadPublishedCache: () => null,
-      initAdmin: (opts) => {
-        capturedAdminOpts = opts;
-        return {
-          isUnlocked: () => adminUnlocked,
-          isOpen: () => false,
-          open: () => {},
-          close: () => {},
-          lock: () => {}
-        };
+  const { headerEl, doc, boardModalEl } = (() => {
+    const res = setupPortfolioHarness({
+      apps: [],
+      portfolioAdmin: {
+        isUnlocked: () => adminUnlocked,
+        loadDraftApps: () => null,
+        hasDraftApps: () => false,
+        loadPublishedCache: () => null,
+        initAdmin: (opts) => {
+          capturedAdminOpts = opts;
+          return {
+            isUnlocked: () => adminUnlocked,
+            isOpen: () => false,
+            open: () => {},
+            close: () => {},
+            lock: () => {}
+          };
+        }
+      },
+      portfolioBoard: {
+        createBoardController: (opts) => {
+          capturedBoardOpts = opts;
+          return {
+            isOpen: () => boardOpen,
+            open: () => {
+              boardOpen = true;
+              opts.modalEl.hidden = false;
+              opts.onOpenChange(true);
+            },
+            close: () => {
+              boardOpen = false;
+              opts.modalEl.hidden = true;
+              opts.onOpenChange(false);
+            },
+            setAdminUnlocked(next) {
+              adminStates.push(Boolean(next));
+            },
+            refresh() {}
+          };
+        }
       }
-    },
-    portfolioBoard: {
-      createBoardController: (opts) => {
-        capturedBoardOpts = opts;
-        return {
-          setAdminUnlocked(next) {
-            adminStates.push(Boolean(next));
-          },
-          refresh() {}
-        };
-      }
-    }
-  });
+    });
+    return {
+      headerEl: res.headerEl,
+      doc: res.doc,
+      boardModalEl: res.doc.getElementById("board-modal")
+    };
+  })();
 
   assert.ok(capturedBoardOpts, "initPortfolio must mount PortfolioBoard.createBoardController");
-  assert.equal(capturedBoardOpts.containerEl.id, "feedback-board");
+  assert.equal(capturedBoardOpts.modalEl.id, "board-modal");
   assert.equal(capturedBoardOpts.isAdminUnlocked(), false);
+
+  const boardBtn = headerEl.querySelector("#board-open-btn");
+  assert.ok(boardBtn, "Header must contain #board-open-btn");
+  boardBtn.click();
+  assert.equal(boardOpen, true);
+  assert.equal(boardModalEl.hidden, false);
+  assert.equal(doc.body.classList.contains("has-overlay"), true);
+
+  doc.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+  assert.equal(boardOpen, false);
+  assert.equal(boardModalEl.hidden, true);
+  assert.equal(doc.body.classList.contains("has-overlay"), false);
 
   adminUnlocked = true;
   capturedAdminOpts.onAuthChanged(true);

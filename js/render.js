@@ -427,6 +427,9 @@
     var embeddedCount = Number(safeStats.embeddedCount) || 0;
     var externalCount = Number(safeStats.externalCount) || 0;
     var isAdminUnlocked = Boolean(safeCallbacks.isAdminUnlocked);
+    var onOpenBoard = typeof safeCallbacks.onOpenBoard === "function"
+      ? safeCallbacks.onOpenBoard
+      : function () {};
     var onOpenAdmin = typeof safeCallbacks.onOpenAdmin === "function"
       ? safeCallbacks.onOpenAdmin
       : function () {};
@@ -480,6 +483,15 @@
     }
 
     var topActions = el("div", { className: "hero-top-actions" });
+    topActions.appendChild(
+      el("button", {
+        className: "btn-board-entry",
+        text: "문의·건의 게시판",
+        props: { type: "button" },
+        attrs: { id: "board-open-btn" },
+        on: { click: onOpenBoard }
+      })
+    );
     if (isAdminUnlocked) {
       topActions.appendChild(
         el("button", {

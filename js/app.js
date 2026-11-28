@@ -37,8 +37,8 @@
     var tagFiltersEl = document.getElementById("tag-filters");
     var appGridEl = document.getElementById("app-grid");
     var appsCountEl = document.getElementById("apps-count");
-    var feedbackBoardEl = document.getElementById("feedback-board");
     var detailModalEl = document.getElementById("detail-modal");
+    var boardModalEl = document.getElementById("board-modal");
     var adminModalEl = document.getElementById("admin-modal");
     var viewerOverlayEl = document.getElementById("viewer-overlay");
     var viewerBackBtn = document.getElementById("viewer-back");
@@ -119,6 +119,19 @@
       return Boolean(adminModalEl && !adminModalEl.hidden);
     }
 
+    function isBoardOpen() {
+      if (boardController && typeof boardController.isOpen === "function") {
+        return Boolean(boardController.isOpen());
+      }
+      return Boolean(boardModalEl && !boardModalEl.hidden);
+    }
+
+    function handleOpenBoard() {
+      if (boardController && typeof boardController.open === "function") {
+        boardController.open();
+      }
+    }
+
     function handleOpenAdmin() {
       if (adminController && typeof adminController.open === "function") {
         adminController.open();
@@ -142,6 +155,7 @@
         currentStats,
         {
           isAdminUnlocked: isAdminUnlocked(),
+          onOpenBoard: handleOpenBoard,
           onOpenAdmin: handleOpenAdmin,
           onLockAdmin: handleLockAdmin
         }
@@ -242,7 +256,7 @@
         return;
       }
       var hasDetailOrViewer = Boolean(state && (state.selectedAppId || state.viewerOpen));
-      document.body.classList.toggle("has-overlay", hasDetailOrViewer || isAdminOpen());
+      document.body.classList.toggle("has-overlay", hasDetailOrViewer || isAdminOpen() || isBoardOpen());
     }
 
     if (
@@ -299,12 +313,21 @@
     if (
       global.PortfolioBoard &&
       typeof global.PortfolioBoard.createBoardController === "function" &&
-      feedbackBoardEl
+      boardModalEl
     ) {
       boardController = global.PortfolioBoard.createBoardController({
-        containerEl: feedbackBoardEl,
+        modalEl: boardModalEl,
         isAdminUnlocked: isAdminUnlocked,
-        onNotify: showToast
+        onNotify: showToast,
+        onOpenChange: function (opened) {
+          syncBodyOverlayClass(store.getState());
+          if (!opened && headerEl && typeof headerEl.querySelector === "function") {
+            var boardBtn = headerEl.querySelector("#board-open-btn");
+            if (boardBtn && typeof boardBtn.focus === "function") {
+              boardBtn.focus();
+            }
+          }
+        }
       });
     }
 
@@ -587,6 +610,9 @@
       } else if (isAdminOpen() && adminController && typeof adminController.close === "function") {
         event.preventDefault();
         adminController.close();
+      } else if (isBoardOpen() && boardController && typeof boardController.close === "function") {
+        event.preventDefault();
+        boardController.close();
       } else if (currentState.selectedAppId) {
         event.preventDefault();
         store.closeDetail();
