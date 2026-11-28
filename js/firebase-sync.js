@@ -9,6 +9,11 @@
 
   var AUTH_STORAGE_KEY = "ys_portfolio_firebase_auth";
   var ALLOWED_APP_ID_RE = /^[a-z0-9-]+$/;
+  var ALLOWED_POST_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+  var BOARD_AUTHOR_MAX_LEN = 30;
+  var BOARD_CONTENT_MIN_LEN = 2;
+  var BOARD_CONTENT_MAX_LEN = 1000;
+  var BOARD_REPLY_MAX_LEN = 500;
 
   function getFetch(fetchImpl) {
     if (typeof fetchImpl === "function") {
@@ -521,11 +526,220 @@
     };
   }
 
+  function normalizeBoardPost(id, raw) {
+    if (!raw || typeof raw !== "object") {
+      return null;
+    }
+    var cleanId = trimString(id || raw.id);
+    var content = trimString(raw.content);
+    if (!cleanId || !ALLOWED_POST_ID_RE.test(cleanId) || !content) {
+      return null;
+    }
+    var author = trimString(raw.author).slice(0, BOARD_AUTHOR_MAX_LEN) || "익명";
+    var createdAt = typeof raw.createdAt === "number" && isFinite(raw.createdAt) && raw.createdAt > 0
+      ? Math.floor(raw.createdAt)
+      : 0;
+    var post = {
+      id: cleanId,
+      author: author,
+      content: content.slice(0, BOARD_CONTENT_MAX_LEN),
+      createdAt: createdAt
+    };
+    var reply = trimString(raw.reply);
+    if (reply) {
+      post.reply = reply.slice(0, BOARD_REPLY_MAX_LEN);
+      if (typeof raw.replyAt === "number" && isFinite(raw.replyAt) && raw.replyAt > 0) {
+        post.replyAt = Math.floor(raw.replyAt);
+      }
+    }
+    return post;
+  }
+
+  function normalizeBoardPosts(rawBoard) {
+    if (!rawBoard || typeof rawBoard !== "object") {
+      return [];
+    }
+    var posts = [];
+    if (Array.isArray(rawBoard)) {
+      for (var i = 0; i < rawBoard.length; i += 1) {
+        var item = rawBoard[i];
+        var postFromArray = normalizeBoardPost(item && item.id ? item.id : String(i), item);
+        if (postFromArray) {
+          posts.push(postFromArray);
+        }
+      }
+    } else {
+      var keys = Object.keys(rawBoard);
+      for (var j = 0; j < keys.length; j += 1) {
+        var key = keys[j];
+        var post = normalizeBoardPost(key, rawBoard[key]);
+        if (post) {
+          posts.push(post);
+        }
+      }
+    }
+    posts.sort(function (a, b) {
+      if (a.createdAt !== b.createdAt) {
+        return b.createdAt - a.createdAt;
+      }
+      return b.id.localeCompare(a.id);
+    });
+    return posts;
+  }
+
+  async function loadBoardPosts(options) {
+    var opts = options || {};
+    var fetchFn = getFetch(opts.fetchImpl);
+    if (!fetchFn) {
+      throw new Error("네트워크 요청 기능(fetch)을 사용할 수 없습니다.");
+    }
+    var dbUrl = normalizeDatabaseUrl(opts.databaseURL);
+    var res = await fetchFn(dbUrl + "/board.json", {
+      method: "GET"
+    });
+    if (!res || !res.ok) {
+      throw new Error("게시판 글을 불러오지 못했습니다. (" + (res ? res.status : 0) + ")");
+    }
+    var raw = typeof res.json === "function" ? await res.json() : null;
+    return normalizeBoardPosts(raw);
+  }
+
+  async function createBoardPost(payload, options) {
+    var opts = options || {};
+    var fetchFn = getFetch(opts.fetchImpl);
+    if (!fetchFn) {
+      throw new Error("네트워크 요청 기능(fetch)을 사용할 수 없습니다.");
+    }
+    var input = payload || {};
+    var author = trimString(input.author).slice(0, BOARD_AUTHOR_MAX_LEN) || "익명";
+    var content = trimString(input.content);
+    if (content.length < BOARD_CONTENT_MIN_LEN) {
+      throw new Error("내용을 " + BOARD_CONTENT_MIN_LEN + "자 이상 입력해 주세요.");
+    }
+    if (content.length > BOARD_CONTENT_MAX_LEN) {
+      throw new Error("내용은 " + BOARD_CONTENT_MAX_LEN + "자 이하로 입력해 주세요.");
+    }
+    var createdAt = typeof input.createdAt === "number" && isFinite(input.createdAt) && input.createdAt > 0
+      ? Math.floor(input.createdAt)
+      : Date.now();
+
+    var dbUrl = normalizeDatabaseUrl(opts.databaseURL);
+    var res = await fetchFn(dbUrl + "/board.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        author: author,
+        content: content,
+        createdAt: createdAt
+      })
+    });
+    if (!res || !res.ok) {
+      var status = res && typeof res.status === "number" ? res.status : 0;
+      throw new Error("게시글 등록 중 오류가 발생했습니다. (" + status + ")");
+    }
+    var created = typeof res.json === "function" ? await res.json() : null;
+    var postId = created && trimString(created.name);
+    if (!postId) {
+      throw new Error("게시글 등록 응답이 올바르지 않습니다.");
+    }
+    return {
+      id: postId,
+      author: author,
+      content: content,
+      createdAt: createdAt
+    };
+  }
+
+  async function requireAdminTokenForBoard(fetchFn, opts) {
+    var idToken = await getValidIdToken({
+      fetchImpl: fetchFn,
+      storage: opts.storage,
+      apiKey: opts.apiKey
+    });
+    if (!idToken) {
+      throw new Error("관리자 Firebase 로그인이 필요합니다. 관리자 패널에서 먼저 로그인해 주세요.");
+    }
+    return idToken;
+  }
+
+  function handleAdminBoardError(res, storage, actionLabel) {
+    var status = res && typeof res.status === "number" ? res.status : 0;
+    if (status === 401 || status === 403) {
+      clearStoredSession(storage);
+      throw new Error("Firebase 쓰기 권한이 없거나 로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+    }
+    throw new Error(actionLabel + " 중 오류가 발생했습니다. (" + status + ")");
+  }
+
+  async function replyBoardPost(postId, replyText, options) {
+    var opts = options || {};
+    var cleanId = trimString(postId);
+    if (!cleanId || !ALLOWED_POST_ID_RE.test(cleanId)) {
+      throw new Error("유효하지 않은 게시글 ID입니다.");
+    }
+    var reply = trimString(replyText);
+    if (!reply) {
+      throw new Error("답변 내용을 입력해 주세요.");
+    }
+    if (reply.length > BOARD_REPLY_MAX_LEN) {
+      throw new Error("답변은 " + BOARD_REPLY_MAX_LEN + "자 이하로 입력해 주세요.");
+    }
+    var fetchFn = getFetch(opts.fetchImpl);
+    if (!fetchFn) {
+      throw new Error("네트워크 요청 기능(fetch)을 사용할 수 없습니다.");
+    }
+    var idToken = await requireAdminTokenForBoard(fetchFn, opts);
+    var dbUrl = normalizeDatabaseUrl(opts.databaseURL);
+    var replyAt = typeof opts.replyAt === "number" && isFinite(opts.replyAt) && opts.replyAt > 0
+      ? Math.floor(opts.replyAt)
+      : Date.now();
+
+    var res = await fetchFn(dbUrl + "/board/" + encodeURIComponent(cleanId) + ".json?auth=" + encodeURIComponent(idToken), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reply: reply,
+        replyAt: replyAt
+      })
+    });
+    if (!res || !res.ok) {
+      handleAdminBoardError(res, opts.storage, "답변 저장");
+    }
+    return {
+      id: cleanId,
+      reply: reply,
+      replyAt: replyAt
+    };
+  }
+
+  async function deleteBoardPost(postId, options) {
+    var opts = options || {};
+    var cleanId = trimString(postId);
+    if (!cleanId || !ALLOWED_POST_ID_RE.test(cleanId)) {
+      throw new Error("유효하지 않은 게시글 ID입니다.");
+    }
+    var fetchFn = getFetch(opts.fetchImpl);
+    if (!fetchFn) {
+      throw new Error("네트워크 요청 기능(fetch)을 사용할 수 없습니다.");
+    }
+    var idToken = await requireAdminTokenForBoard(fetchFn, opts);
+    var dbUrl = normalizeDatabaseUrl(opts.databaseURL);
+
+    var res = await fetchFn(dbUrl + "/board/" + encodeURIComponent(cleanId) + ".json?auth=" + encodeURIComponent(idToken), {
+      method: "DELETE"
+    });
+    if (!res || !res.ok) {
+      handleAdminBoardError(res, opts.storage, "게시글 삭제");
+    }
+    return true;
+  }
+
   global.PortfolioFirebase = {
     FIREBASE_CONFIG: FIREBASE_CONFIG,
     AUTH_STORAGE_KEY: AUTH_STORAGE_KEY,
     normalizeCatalogPayload: normalizeCatalogPayload,
     normalizeStatsPayload: normalizeStatsPayload,
+    normalizeBoardPosts: normalizeBoardPosts,
     getStoredAuth: getStoredAuth,
     signInWithPassword: signInWithPassword,
     getValidIdToken: getValidIdToken,
@@ -534,6 +748,10 @@
     loadStats: loadStats,
     incrementSiteView: incrementSiteView,
     incrementAppView: incrementAppView,
-    publishCatalogToFirebase: publishCatalogToFirebase
+    publishCatalogToFirebase: publishCatalogToFirebase,
+    loadBoardPosts: loadBoardPosts,
+    createBoardPost: createBoardPost,
+    replyBoardPost: replyBoardPost,
+    deleteBoardPost: deleteBoardPost
   };
 })(typeof window !== "undefined" ? window : globalThis);

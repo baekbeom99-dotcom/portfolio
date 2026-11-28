@@ -14,6 +14,12 @@
           ".write": "newData.isNumber() && (!data.exists() ? newData.val() === 1 : newData.val() === data.val() + 1)"
         }
       }
+    },
+    "board": {
+      ".read": true,
+      "$postId": {
+        ".write": "(auth != null && auth.uid === 'zNS57lhTOXMCDrbBwhAV2US5i0w1') || (!data.exists() && newData.hasChildren(['author', 'content', 'createdAt']) && newData.child('author').isString() && newData.child('author').val().length >= 1 && newData.child('author').val().length <= 30 && newData.child('content').isString() && newData.child('content').val().length >= 2 && newData.child('content').val().length <= 1000 && newData.child('createdAt').isNumber() && newData.child('createdAt').val() > 0 && !newData.child('reply').exists() && !newData.child('replyAt').exists())"
+      }
     }
   }
 }

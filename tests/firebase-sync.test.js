@@ -473,3 +473,130 @@ test("initAdmin renders total and per-app visitor stats dashboard and refreshes 
   assert.equal(elementsById.get("admin-total-app-views").textContent, "15회");
   controller.close();
 });
+
+test("database.rules.json defines public read/create and admin moderation rules for /board", () => {
+  const rulesPath = path.join(ROOT, "database.rules.json");
+  const rules = JSON.parse(fs.readFileSync(rulesPath, "utf8"));
+  assert.ok(rules.rules.board, "Missing /board rules");
+  assert.equal(rules.rules.board[".read"], true);
+  assert.ok(rules.rules.board.$postId && typeof rules.rules.board.$postId[".write"] === "string");
+  assert.match(rules.rules.board.$postId[".write"], /zNS57lhTOXMCDrbBwhAV2US5i0w1/);
+  assert.match(rules.rules.board.$postId[".write"], /!data\.exists\(\)/);
+  assert.match(rules.rules.board.$postId[".write"], /!newData\.child\('reply'\)\.exists\(\)/);
+});
+
+test("normalizeBoardPosts normalizes entries, defaults empty author to 익명, and sorts newest-first", () => {
+  const { PortfolioFirebase } = loadFirebaseModule();
+  assert.equal(typeof PortfolioFirebase.normalizeBoardPosts, "function");
+
+  assert.deepEqual(Array.from(PortfolioFirebase.normalizeBoardPosts(null)), []);
+  const posts = PortfolioFirebase.normalizeBoardPosts({
+    "-O1": { author: "  ", content: "  첫 번째 건의입니다  ", createdAt: 1000 },
+    "-O2": { author: "김선생", content: "두 번째 요청입니다", createdAt: 3000, reply: "확인했습니다", replyAt: 3500 },
+    "-O3": { author: "학생", content: "같은 시각 글", createdAt: 3000 },
+    "-O_invalid": { author: "빈글", content: "", createdAt: 4000 }
+  });
+
+  assert.deepEqual(
+    Array.from(posts, (p) => p.id),
+    ["-O3", "-O2", "-O1"]
+  );
+  assert.equal(posts[2].author, "익명");
+  assert.equal(posts[2].content, "첫 번째 건의입니다");
+  assert.equal(posts[1].reply, "확인했습니다");
+  assert.equal(posts[1].replyAt, 3500);
+});
+
+test("loadBoardPosts and createBoardPost validate inputs and persist to /board.json", async () => {
+  const requests = [];
+  const { PortfolioFirebase } = loadFirebaseModule({
+    fetchImpl: async (url, init = {}) => {
+      requests.push({ url, method: init.method || "GET", body: init.body || null });
+      if (url.endsWith("/board.json") && (!init.method || init.method === "GET")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            "-O10": { author: "학부모", content: "모바일에서도 잘 돼요", createdAt: 1764340000000 }
+          })
+        };
+      }
+      if (url.endsWith("/board.json") && init.method === "POST") {
+        return { ok: true, status: 200, json: async () => ({ name: "-O11" }) };
+      }
+      return { ok: false, status: 404 };
+    }
+  });
+
+  const loaded = await PortfolioFirebase.loadBoardPosts();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, "-O10");
+
+  await assert.rejects(() => PortfolioFirebase.createBoardPost({ author: "홍", content: "짧" }), /2자 이상/);
+  await assert.rejects(
+    () => PortfolioFirebase.createBoardPost({ author: "홍", content: "가".repeat(1001) }),
+    /1000자 이하/
+  );
+
+  const created = await PortfolioFirebase.createBoardPost({
+    author: "  ",
+    content: "  구구단 앱 소리 끄기 버튼 추가해주세요  "
+  });
+  assert.equal(created.id, "-O11");
+  assert.equal(created.author, "익명");
+  assert.equal(created.content, "구구단 앱 소리 끄기 버튼 추가해주세요");
+  assert.equal(typeof created.createdAt, "number");
+
+  const postCall = requests.find((r) => r.method === "POST");
+  assert.ok(postCall);
+  const sentPayload = JSON.parse(postCall.body);
+  assert.equal(sentPayload.author, "익명");
+  assert.equal(sentPayload.reply, undefined);
+});
+
+test("replyBoardPost and deleteBoardPost require auth token, validate IDs, and handle 401/403", async () => {
+  const localStorage = createMemoryStorage();
+  const requests = [];
+  let forceUnauthorized = false;
+
+  localStorage.setItem(
+    "ys_portfolio_firebase_auth",
+    JSON.stringify({
+      email: "admin@example.com",
+      uid: "zNS57lhTOXMCDrbBwhAV2US5i0w1",
+      idToken: "token-ok",
+      refreshToken: "ref-1",
+      expiresAt: Date.now() + 3600 * 1000
+    })
+  );
+
+  const { PortfolioFirebase } = loadFirebaseModule({
+    localStorage,
+    fetchImpl: async (url, init = {}) => {
+      requests.push({ url, method: init.method || "GET", body: init.body || null });
+      if (forceUnauthorized) {
+        return { ok: false, status: 403 };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }
+  });
+
+  await assert.rejects(() => PortfolioFirebase.deleteBoardPost("bad/id"), /게시글 ID/);
+  await assert.rejects(() => PortfolioFirebase.replyBoardPost("-O10", "   "), /답변 내용/);
+
+  const replied = await PortfolioFirebase.replyBoardPost("-O10", "반영 완료했습니다!");
+  assert.equal(replied.id, "-O10");
+  assert.equal(replied.reply, "반영 완료했습니다!");
+  assert.equal(typeof replied.replyAt, "number");
+  assert.equal(requests[0].method, "PATCH");
+  assert.match(requests[0].url, /\/board\/-O10\.json\?auth=token-ok$/);
+
+  const deleted = await PortfolioFirebase.deleteBoardPost("-O10");
+  assert.equal(deleted, true);
+  assert.equal(requests[1].method, "DELETE");
+  assert.match(requests[1].url, /\/board\/-O10\.json\?auth=token-ok$/);
+
+  forceUnauthorized = true;
+  await assert.rejects(() => PortfolioFirebase.deleteBoardPost("-O10"), /로그인/);
+  assert.equal(localStorage.getItem("ys_portfolio_firebase_auth"), null);
+});
